@@ -1,11 +1,13 @@
 import { AudioPlayer, VoiceConnection, VoiceConnectionStatus, createAudioPlayer, entersState, joinVoiceChannel } from "@discordjs/voice"
 import { Guild, VoiceBasedChannel } from "discord.js";
 import { globalEmitter } from './EventEmitter';
+import DynamicAudioMixer from "./AudioMixer";
 
 export type Connection = {
     voiceConnection: VoiceConnection,
     guild: Guild,
     player: AudioPlayer,
+    mixer: DynamicAudioMixer | undefined;
 }
 
 class ConnectionManager {
@@ -20,13 +22,13 @@ class ConnectionManager {
         let connection = this.voiceConnections.get(guild.id);
         if(!connection){
             const voiceConnection = this.createConnection(voiceChannel);
-            connection = {
+            connection = { 
                 voiceConnection: voiceConnection,
                 guild: guild,
-                player: createAudioPlayer()
+                player: createAudioPlayer(),
             } as Connection;
 
-            voiceConnection.subscribe(connection.player);
+            connection.mixer = new DynamicAudioMixer(connection);
             this.voiceConnections.set(guild.id, connection);
         }
 

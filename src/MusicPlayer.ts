@@ -7,10 +7,11 @@ import { AudioPlayer,
 import { CommandInteraction, Guild, } from "discord.js";
 import ytdl from "ytdl-core";
 import { globalEmitter } from './EventEmitter';
+import { Connection } from "./ConnectionManager";
 
 type Track = {
     trackName: string | undefined,
-    url: string | undefined,
+    url: string ,
     volume: number | undefined,
 }
 
@@ -131,84 +132,46 @@ export class MusicPlayer {
         return this.isPlaying;
     }
 
-    playFromUrl(vc: VoiceConnection, url: string) : void {        
+    playFromUrl(connection: Connection, url: string) : void {        
 
         this.currentUrl = url; 
 
-        if(!this.player) {
-            this.player = createAudioPlayer();
-            this.player.on(AudioPlayerStatus.Idle, () => {
-                if(this.loop){
-                    if(this.currentUrl) this.playFromUrl(vc, this.currentUrl);
-                    else this.play(vc);
-                }else{
-                    this.next(vc);
-                }
-            });
-        }
 
-        const resource = this.makeResource(url as string, MusicType.YouTube);
-        if(!resource) throw Error("Music Player | Resource was not found");
-        
-        if(!vc){
-            throw Error("Music Player | No Voice Connection");
-        }
-        vc.subscribe(this.player);
-        this.currentUrl = url;
-        this.player.play(resource);   
+        connection.mixer?.addStream(url, "urltrack")
         this.isPlaying = true;
     }
 
-    play(vc: VoiceConnection, trackNum?: number) : void {
+    play(connection: Connection, trackNum?: number) : void {
         if(trackNum && (trackNum < 0 || trackNum > this.length)) throw Error("Music Player | Track number was not found.");
         
         if(trackNum) this.currentTrack = trackNum;
 
-        if(this.currentTrack < 0) return this.prev(vc); 
+        if(this.currentTrack < 0) return this.prev(connection); 
 
         console.log("play: " + this.currentTrack); 
         
         const track = this.tracks[this.currentTrack];
 
-        if(!this.player) {
-            this.player = createAudioPlayer();
-            this.player.on(AudioPlayerStatus.Idle, () => {
-                if(this.loop){
-                    if(this.currentUrl) this.playFromUrl(vc, this.currentUrl);
-                    else this.play(vc);
-                }else{
-                    this.next(vc);
-                }
-            });
-        }
 
-        const resource = this.makeResource(track!.url as string, MusicType.YouTube);
-        if(!resource) throw Error("Music Player | Resource was not found");
+        connection.mixer?.addStream(track.url, "track" + track.trackName)
 
-        if(!vc){
-            throw Error("Music Player | No Voice Connection");
-        }
-
-        vc.subscribe(this.player);
-
-        this.player.play(resource);
         this.isPlaying = true;
     }
     
-    next(vc: VoiceConnection): void {
+    next(connection: Connection): void {
         this.currentTrack++;
         if(this.currentTrack >= this.tracks.length) this.currentTrack = this.tracks.length-1;
 
-        this.play(vc,this.currentTrack);
+        this.play(connection,this.currentTrack);
     }   
 
-    prev(vc: VoiceConnection) : void {
+    prev(connection: Connection) : void {
         this.currentTrack--;
         if(this.currentTrack < 0) {
             this.currentTrack = 0;
         }
         
-        this.play(vc, this.currentTrack);
+        this.play(connection, this.currentTrack);
     }
 
     /*join(voiceChannel?: VoiceBasedChannel) : void {

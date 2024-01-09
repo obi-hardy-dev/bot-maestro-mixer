@@ -77,25 +77,7 @@ class SoundEffectManager {
     playFromUrl(connection: Connection, url: string, loop: boolean = false) : void {        
         const vc = connection.voiceConnection;
         const effect = { url: url, loop: loop } as SoundEffect; 
-
-        if(!effect.player) {
-            effect.player = createAudioPlayer();
-            effect.player.on(AudioPlayerStatus.Idle, () => {
-                if(effect.loop){
-                    this.playFromUrl(vc, effect.url);
-                }else{
-                    effect.player = undefined;
-                }
-            });
-        }
-
-        const resource = this.makeResource(effect, UrlType.YouTube);
-        if(!resource) throw Error("Effect Manager | Resource was not found");
-
-
-        vc.subscribe(effect.player);
-
-        effect.player.play(resource);
+        connection.mixer!.addStream(effect.url, "effect" + effect.name)
     }
     play(connection: Connection, name: string) : void {
         const vc = connection.voiceConnection;
@@ -106,23 +88,12 @@ class SoundEffectManager {
             throw Error("Effect Manager | No Voice Connection");
         }
 
-        if(!effect.player) {
-            effect.player = createAudioPlayer();
-            effect.player.on(AudioPlayerStatus.Idle, () => {
-                if(effect.loop){
-                    this.play(vc, effect.name);
-                }else{
-                    effect.player = undefined;
-                }
-            });
-        }
-
-        const resource = this.makeResource(effect, UrlType.YouTube);
+        
+        connection.mixer!.addStream(effect.url, "effect" + effect.name)
+       /* const resource = this.makeResource(effect, UrlType.YouTube);
         if(!resource) throw Error("Effect Manager | Resource was not found");
-
-        vc.subscribe(effect.player);
-
-        effect.player.play(resource);
+*/
+        
     }
 
     toggleLoop(name: string) : boolean{

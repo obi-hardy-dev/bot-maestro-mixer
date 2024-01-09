@@ -73,7 +73,7 @@ export const playurleffect = {
             const seUrl = getOptionValue<string>(interaction,'url');
             const seManager = getSoundEffectManager(interaction.guild!);
             const connection = getConnection(interaction);
-            seManager.playFromUrl(connection.voiceConnection, seUrl!);
+            seManager.playFromUrl(connection, seUrl!);
             await interaction.editReply(`Playing song from URL: ${seUrl}`);
         }
         catch(error) {
@@ -126,7 +126,7 @@ export const playeffect = {
             const name = getOptionValue<string>(interaction,'name');
             const seManager = getSoundEffectManager(interaction.guild!);
             const connection = getConnection(interaction);
-            seManager.play(connection.voiceConnection, name!);
+            seManager.play(connection, name!);
             await interaction.editReply(`Playing effect: ${name}`);
         }
         catch(error){

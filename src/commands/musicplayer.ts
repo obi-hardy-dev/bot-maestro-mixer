@@ -65,7 +65,7 @@ export const playurl = {
             console.log(mplayer);
             const connection = getConnection(interaction);
             console.log(connection);
-            mplayer.playFromUrl(connection.voiceConnection, songUrl!);
+            mplayer.playFromUrl(connection, songUrl!);
             await interaction.reply(`Playing song from URL: ${songUrl}`);
         }
         catch(error){
@@ -110,7 +110,7 @@ export const play = {
             const num = getOptionValue<number>(interaction,'num');
             const mplayer = getMusicPlayer(interaction.guild!);
             const connection = getConnection(interaction);
-            mplayer.play(connection.voiceConnection, num);
+            mplayer.play(connection, num);
             await interaction.reply(`Playing song at: ${num}`);
         }
         catch(error){
@@ -246,7 +246,7 @@ export const next = {
             const channel = getVoiceBasedChannel(interaction);
             const connection = connectionManager.connect(interaction.guild!, channel);
 
-            mplayer.next(connection.voiceConnection);
+            mplayer.next(connection);
 
             await interaction.reply(`Playing next song: ${mplayer.currentlyPlaying()}`);
         }
@@ -269,7 +269,7 @@ export const prev = {
             const mplayer = getMusicPlayer(interaction.guild!);
             const channel = getVoiceBasedChannel(interaction);
             const connection = connectionManager.connect(interaction.guild!, channel);
-            mplayer.prev(connection.voiceConnection);
+            mplayer.prev(connection);
             await interaction.reply(`Playing previous song: ${mplayer.currentlyPlaying()}`);
         }
         catch(error){
