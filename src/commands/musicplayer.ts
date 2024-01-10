@@ -62,9 +62,7 @@ export const playurl = {
         try{
             const songUrl = getOptionValue<string>(interaction,'url');
             const mplayer = getMusicPlayer(interaction.guild!);
-            console.log(mplayer);
             const connection = getConnection(interaction);
-            console.log(connection);
             mplayer.playFromUrl(connection, songUrl!);
             await interaction.reply(`Playing song from URL: ${songUrl}`);
         }

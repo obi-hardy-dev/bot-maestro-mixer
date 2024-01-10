@@ -57,7 +57,7 @@ describe('ytdl Audio Stream Test', () => {
             'pipe:1',            // Output to standard output
         ]);
 
-        stream.pipe(demuxer).pipe(opusDecoder).pipe(opusEncoder).pipe(ffmpeg.stdin);
+        stream.pipe(demuxer).pipe(opusDecoder).pipe(ffmpeg.stdin);
         
 
         const outputStream = fs.createWriteStream('output.mp3');

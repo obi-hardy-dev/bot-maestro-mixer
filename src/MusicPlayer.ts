@@ -152,7 +152,7 @@ export class MusicPlayer {
         
         const track = this.tracks[this.currentTrack];
 
-
+        
         connection.mixer?.addStream(track.url, "track" + track.trackName)
 
         this.isPlaying = true;
