@@ -128,9 +128,10 @@ export const togglepause = {
     async execute(interaction: CommandInteraction){
         try{
             const mplayer = getMusicPlayer(interaction.guild!);
-            getConnection(interaction);
+            const connection = getConnection(interaction);
 
-            const playing = mplayer.togglePause();
+
+            const playing = mplayer.togglePause(connection);
             await interaction.reply(`${playing ? "Playing" : "Pausing" } currently playing song: ${mplayer.currentlyPlaying()}`);
         }
         catch(error){
@@ -216,7 +217,7 @@ export const leave = {
         .setName('leave')
         .setDescription('Leave voice channel'),
     async execute(interaction: CommandInteraction){
-        getConnection(interaction);
+        const connection = getConnection(interaction);
         connectionManager.disconnect(interaction.guild!.id)
         await interaction.reply(`Leaving channel`);
     } 

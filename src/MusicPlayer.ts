@@ -8,6 +8,7 @@ import { CommandInteraction, Guild, } from "discord.js";
 import ytdl from "ytdl-core";
 import { globalEmitter } from './EventEmitter';
 import { Connection } from "./ConnectionManager";
+import DynamicAudioMixer from "./AudioMixer";
 
 type Track = {
     trackName: string | undefined,
@@ -21,7 +22,7 @@ export enum MusicType {
 
 export class MusicPlayer {
     tracks: Track[];
-    player: AudioPlayer | undefined;
+    player: DynamicAudioMixer | undefined;
     isPlaying: boolean;
     currentTrack: number;
     guild: Guild;
@@ -45,23 +46,6 @@ export class MusicPlayer {
             }
         });
 
-    }
-
-    private makeResource(url: string, type: MusicType) : AudioResource | null{
-        let resource: AudioResource | null = null;
-        switch (type) {
-            case MusicType.YouTube:
-                const stream = ytdl(url, { filter: 'audioonly', highWaterMark: 1 << 22});
-                resource = createAudioResource(stream);
-                stream.once("readable",() => {
-                    setTimeout(()=>{ 
-                        this.player!.play(resource!);
-                    }, 500);
-                });
-                break;
-        }
-
-        return resource;
     }
 
     private getOptionValue<T>(interaction: CommandInteraction, name: string) : T | undefined{
@@ -116,18 +100,19 @@ export class MusicPlayer {
     list() : string[] {
         return this.tracks
             .map((track: Track, i: number) => { 
-                return `${i}: ${track.trackName} ${i === this.currentTrack ? 'Playing' : ''}`
+                return `${i+1}: ${track.trackName} ${i === this.currentTrack ? 'Playing' : ''}`
             });
     }
 
-    togglePause() : boolean {
+    togglePause(connection: Connection) : boolean {
+        this.player = connection.mixer;
         if(!this.player) throw Error("Music Player | Unable to pause, no player created");
         
         if(this.isPlaying){
-            this.isPlaying = this.player!.pause(true) ? false : true;
+            this.isPlaying = this.player!.pause() ? false : true;
         }
         else{
-            this.isPlaying = this.player.unpause() ? true : false;
+            this.isPlaying = this.player.play() ? true : false;
         }
         return this.isPlaying;
     }

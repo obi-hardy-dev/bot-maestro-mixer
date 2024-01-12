@@ -2,6 +2,7 @@ import { AudioPlayer, VoiceConnection, VoiceConnectionStatus, createAudioPlayer,
 import { Guild, VoiceBasedChannel } from "discord.js";
 import { globalEmitter } from './EventEmitter';
 import DynamicAudioMixer from "./AudioMixer";
+import { disconnect } from "process";
 
 export type Connection = {
     voiceConnection: VoiceConnection,
@@ -22,6 +23,20 @@ class ConnectionManager {
         let connection = this.voiceConnections.get(guild.id);
         if(!connection){
             const voiceConnection = this.createConnection(voiceChannel);
+            voiceConnection.on(VoiceConnectionStatus.Disconnected, async (oldState, newState) => {
+                try {
+                    await Promise.race([
+                        entersState(voiceConnection, VoiceConnectionStatus.Signalling, 5_000),
+                        entersState(voiceConnection, VoiceConnectionStatus.Connecting, 5_000),
+                    ]);
+                    // Seems to be reconnecting to a new channel - ignore disconnect
+                } catch (error) {
+                    // Seems to be a real disconnect which SHOULDN'T be recovered from
+                    console.log(`disconnected from ${guild.id} `);
+                    connection?.mixer?.destroy();
+                    this.disconnect(guild.id);
+                }
+            });
             connection = { 
                 voiceConnection: voiceConnection,
                 guild: guild,
@@ -41,7 +56,6 @@ class ConnectionManager {
         if(!connection) throw new Error("No connection to disconnect");
 
         globalEmitter.emit('voiceConnectionDisconnected', id);
-        connection.voiceConnection.destroy();
 
         this.voiceConnections.delete(id);
     }

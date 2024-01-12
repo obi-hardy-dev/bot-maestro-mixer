@@ -74,10 +74,10 @@ class SoundEffectManager {
         return resource;
     }
 
-    playFromUrl(connection: Connection, url: string, loop: boolean = false) : void {        
+    playFromUrl(connection: Connection, url: string, loop: boolean = true) : void {        
         const vc = connection.voiceConnection;
         const effect = { url: url, loop: loop } as SoundEffect; 
-        connection.mixer!.addStream(effect.url, "effect" + effect.name)
+        connection.mixer!.addStream(effect.url, "effect" + effect.name, loop)
     }
     play(connection: Connection, name: string) : void {
         const vc = connection.voiceConnection;
@@ -89,7 +89,7 @@ class SoundEffectManager {
         }
 
         
-        connection.mixer!.addStream(effect.url, "effect" + effect.name)
+        connection.mixer!.addStream(effect.url, "effect" + effect.name, effect.loop)
        /* const resource = this.makeResource(effect, UrlType.YouTube);
         if(!resource) throw Error("Effect Manager | Resource was not found");
 */
