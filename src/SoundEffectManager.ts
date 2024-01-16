@@ -1,19 +1,14 @@
-import { AudioPlayer, AudioPlayerStatus, AudioResource, VoiceConnection, createAudioPlayer, createAudioResource } from "@discordjs/voice";
-import { BaseGuildVoiceChannel, Channel, Guild, VoiceBasedChannel, VoiceChannel } from "discord.js";
-import ytdl from "ytdl-core";
 import {globalEmitter} from './EventEmitter' 
 import { Connection } from "./ConnectionManager";
-import { connect } from "http2";
+import DynamicAudioMixer from "./AudioMixer";
+import { Guild } from 'discord.js';
 
-enum UrlType {
-    YouTube
-}
 type SoundEffect = {
     name: string, 
     url: string,
     loop: boolean,
     isPlaying: boolean,
-    player: AudioPlayer | undefined,
+    player: DynamicAudioMixer | undefined,
 }
 
 class SoundEffectManager {
@@ -56,43 +51,23 @@ class SoundEffectManager {
         return this.effects.map((e, i) => 
             `${i+1}: ${e.name} - ${e.url} ${this.isCurrentlyPlaying(e.name) && 'Playing '}${e.loop && 'Loop'}`)
     }
-
-    private makeResource(effect: SoundEffect, type: UrlType) : AudioResource | null{
-        let resource: AudioResource | null = null;
-        switch (type) {
-            case UrlType.YouTube:
-                const stream = ytdl(effect.url, { filter: 'audioonly', highWaterMark: 1 << 22});
-                resource = createAudioResource(stream);
-                stream.once("readable",() => {
-                    setTimeout(()=>{ 
-                        effect.player!.play(resource!);
-                    }, 500);
-                });
-                break;
-        }
-
-        return resource;
-    }
-
-    playFromUrl(connection: Connection, url: string, loop: boolean = true) : void {        
+    playFromUrl(connection: Connection, url: string, loop: boolean = false) : void {        
         const vc = connection.voiceConnection;
+        if(!vc){
+            throw Error("Effect Manager | No Voice Connection");
+        }
         const effect = { url: url, loop: loop } as SoundEffect; 
         connection.mixer!.addStream(effect.url, "effect" + effect.name, loop)
     }
     play(connection: Connection, name: string) : void {
         const vc = connection.voiceConnection;
-        const effect = this.effects.filter((effect) => effect.name === name)[0];
-        if(!effect) throw new Error('Effect not found');
-        
         if(!vc){
             throw Error("Effect Manager | No Voice Connection");
         }
-
+        const effect = this.effects.filter((effect) => effect.name === name)[0];
+        if(!effect) throw new Error('Effect not found');
         
         connection.mixer!.addStream(effect.url, "effect" + effect.name, effect.loop)
-       /* const resource = this.makeResource(effect, UrlType.YouTube);
-        if(!resource) throw Error("Effect Manager | Resource was not found");
-*/
         
     }
 
@@ -109,10 +84,10 @@ class SoundEffectManager {
         if(!se.player) throw Error("Effect Manager | Unable to pause, no player created");
         
         if(se.isPlaying){
-            se.isPlaying = se.player!.pause(true) ? false : true;
+            se.isPlaying = se.player!.pauseById("effect"+name);
         }
         else{
-            se.isPlaying = se.player.unpause() ? true : false;
+            se.isPlaying = se.player.playById("effect"+name);
         }
         return se.isPlaying;
     }

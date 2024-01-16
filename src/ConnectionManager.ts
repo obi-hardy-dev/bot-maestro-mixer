@@ -22,6 +22,7 @@ class ConnectionManager {
     connect(guild: Guild, voiceChannel: VoiceBasedChannel) : Connection{
         let connection = this.voiceConnections.get(guild.id);
         if(!connection){
+            console.log(`connection create`);
             const voiceConnection = this.createConnection(voiceChannel);
             voiceConnection.on(VoiceConnectionStatus.Disconnected, async (oldState, newState) => {
                 try {
@@ -55,8 +56,7 @@ class ConnectionManager {
     
         if(!connection) throw new Error("No connection to disconnect");
 
-        globalEmitter.emit('voiceConnectionDisconnected', id);
-
+        connection.voiceConnection.disconnect();
         this.voiceConnections.delete(id);
     }
     
@@ -77,7 +77,6 @@ class ConnectionManager {
                 // Connection is reconnecting
             } catch (error) {
                 // Connection has fully disconnected
-                globalEmitter.emit('voiceConnectionDisconnected', voiceChannel.guildId);
                 connection.destroy();
             }
         });

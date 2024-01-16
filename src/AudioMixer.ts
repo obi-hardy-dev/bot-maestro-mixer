@@ -5,36 +5,6 @@ import { Connection } from './ConnectionManager';
 import { spawn } from 'child_process';
 
 const MB = 1024 * 1024;
-class SilentStream extends Readable{
-    private silenceFrame: Buffer;
-    paused: boolean;
-    constructor(){
-        super();
-        this.silenceFrame = Buffer.from(new Array(3840).fill(0)); 
-        this.paused = false;
-        this.on('close', () => {
-            console.log(`silence closed`);
-        })
-    }
-    _read(size: number) : void {
-        if (!this.paused) {
-            while (this.push(this.silenceFrame)) {
-            }
-        }
-    }
-
-    pause(): this {
-        super.pause();
-        this.paused = true;
-        return this;
-    }
-
-    resume(): this {
-        super.resume();
-        this.paused = false;
-        return this;
-    }
-}
 class AudioBuffer{
     private buffer: Buffer;
     private maxSize: number;
@@ -43,15 +13,16 @@ class AudioBuffer{
     private readyToFlush: boolean;
     private isPaused: boolean;
     public done: boolean;
-    private dataProcessedInSec: number;
+    private dataSentInSec: number;
     private lastProcessedTime: bigint | undefined; 
     private timeProcessedInSec: number;
-    constructor(sourceStream:Readable, maxSize: number = MB * .5) {
+
+    constructor(sourceStream:Readable, maxSize: number = MB * 10) {
         this.buffer = Buffer.alloc(0);
         this.maxSize = maxSize;
         this.isFull = false;
         this.isPaused = false;
-        this.dataProcessedInSec = 0;
+        this.dataSentInSec = 0;
         this.timeProcessedInSec = 0;
         this.sourceStream = sourceStream;
         this.readyToFlush = false;
@@ -64,23 +35,20 @@ class AudioBuffer{
 
     append(data: Buffer) {
         this.buffer = Buffer.concat([this.buffer, data]);
-        if (this.buffer.length + data.length > this.maxSize * 0.5 || this.dataProcessedInSec > this.timeProcessedInSec + 1) {
+        if (this.buffer.length + data.length > this.maxSize * 0.5 || this.dataSentInSec > this.timeProcessedInSec + 1) {
             this.isFull = true;
             this.sourceStream.pause();
         }
     }
 
-    getChunk(size: number) : Buffer {
-        console.log(`${this.buffer.length} - ${this.maxSize} | ${this.dataProcessedInSec} - ${this.timeProcessedInSec}`);
+    getChunk(size: number) : Buffer | undefined{
+        //console.log(`${size} :  ${this.buffer.length} / ${this.maxSize} | ${this.dataSentInSec} - ${this.timeProcessedInSec}`);
+        if(this.isPaused) return undefined;
         const now = process.hrtime.bigint(); 
 
-        if(this.isPaused) return Buffer.alloc(0)
 
         if(size > this.buffer.length){
-            const padding = Buffer.alloc(size - this.buffer.length).fill(0);
-            
             if(this.readyToFlush){
-                this.append(padding);
                 const flush = this.buffer.subarray(0, size);
                 console.log(this.buffer.length);
                 this.buffer = Buffer.alloc(0);
@@ -94,12 +62,12 @@ class AudioBuffer{
 
         const chunk = this.buffer.subarray(0, size);
         this.buffer = this.buffer.subarray(size);
-        if (this.isFull && (this.buffer.length <= this.maxSize * 0.5 && this.dataProcessedInSec < this.timeProcessedInSec + .5 )) { // 50% threshold
+        if (this.isFull && (this.buffer.length <= this.maxSize * 0.5 && this.dataSentInSec < this.timeProcessedInSec + .5 )) { // 50% threshold
             this.isFull = false;
             this.sourceStream.resume();
         }
 
-        this.dataProcessedInSec +=  (chunk.length / (2 * 2)) / 48000;
+        this.dataSentInSec +=  (chunk.length / (2 * 2)) / 48000;
         if(this.lastProcessedTime){
             const timeElapsed = (now - this.lastProcessedTime); 
             this.timeProcessedInSec += Number(timeElapsed) / 1_000_000_000; 
@@ -112,12 +80,22 @@ class AudioBuffer{
     setPause(pause: boolean) : boolean{
         if(this.isPaused === pause) return pause;
         console.log("pause: " + pause);
-        if(pause) this.lastProcessedTime = undefined;
-        else{
-            this.sourceStream.resume();
+        if(pause) {
             this.lastProcessedTime = process.hrtime.bigint();
         }
+        else{
+            const now = process.hrtime.bigint();
+            if(this.lastProcessedTime)
+                console.log(`pause length: ${this.getTimeElapsedInSec(this.lastProcessedTime, now)}`);
+            this.sourceStream.resume();
+            this.lastProcessedTime = now;
+        }
         return this.isPaused = pause;
+    }
+    
+    getTimeElapsedInSec(then: bigint, now: bigint ): number {
+        const timeElapsed = (now - then); 
+        return Number(timeElapsed) / 1_000_000_000; 
     }
 
     getPaused(){
@@ -125,17 +103,17 @@ class AudioBuffer{
     }
 
     destroy(){
+        this.setPause(true);
+        this.buffer = Buffer.alloc(0);
         this.sourceStream.destroy();
     }
 }
 
 export class AudioMixingTransform extends Transform {
     private buffers: Map<string, AudioBuffer>;
-    private silentBuffer: AudioBuffer;
     private mixingInterval: number;
     public isActive = false;
     private lastTimestamp: bigint | undefined;
-    private isDrained = true;
     private interval: NodeJS.Timeout;
     private sampleRate = 48000;
     private bitDepth = 16;
@@ -146,33 +124,25 @@ export class AudioMixingTransform extends Transform {
     constructor() {
         super();
         this.buffers = new Map<string, AudioBuffer>();
-        this.mixingInterval  = 20; // milliseconds, adjust as needed
-        const silentStream = new SilentStream();
-        this.silentBuffer = new AudioBuffer(silentStream);
-        silentStream.on('data', (chunk: Buffer) => { 
-            this.silentBuffer.append(chunk);
-        });
-        this.on('drain', () => {
-            this.isDrained = true;
-            this.mixAndOutput();
-        });
+        this.mixingInterval  = 10; // milliseconds, adjust as needed
         this.interval = setInterval(() => {
-            if (this.isDrained) {
-                this.mixAndOutput();
-            }
+            this.mixAndOutput();
         }, this.mixingInterval);
     }
     getBufferSize() {
+        const now = process.hrtime.bigint();
         if(!this.lastTimestamp){
+            this.lastTimestamp = now;
             return this.sampleRate * this.channels * this.bytesPerSample * (this.initialDurationMs / 1000);
         }
-        const now = process.hrtime.bigint();
         const elapsedTime = Number(now - this.lastTimestamp) / 1e6; // Convert to milliseconds
+
         this.lastTimestamp = now;
 
-
         const samples = this.sampleRate * elapsedTime / 1000;
-        return samples * this.channels * this.bytesPerSample;
+        let bufferSize = samples * this.channels * this.bytesPerSample;
+        bufferSize = bufferSize - (bufferSize % 2);
+        return bufferSize;
     }     
     alignBuffers(...buffers: Buffer[]) {
         
@@ -182,25 +152,22 @@ export class AudioMixingTransform extends Transform {
         // Pad all buffers to match the length of the longest buffer
         return buffers.map(buffer => {
             if (buffer.length < maxLength) {
+                console.log("padded");
                 // Calculate the size difference and pad with silence
                 const sizeDifference = maxLength - buffer.length;
-                return Buffer.concat([buffer, Buffer.alloc(sizeDifference)]);
+                return Buffer.concat([buffer, Buffer.alloc(sizeDifference).fill(0)]);
             }
             return buffer; // No padding needed if the buffer is already the longest
         });
     }
 
     mixAndOutput() {
-        if(!this.isDrained || this.buffers.size === 0) {
-            return;
-        }
+    
         const bs = this.getBufferSize()
         const pipes: Buffer[] =[];
-        let anyPlaying = false;
         for(const [key, buffer] of this.buffers){
-            if(!anyPlaying) anyPlaying = !buffer.getPaused();  
-            const buf = buffer.getChunk(bs)!;
-            if(!buf) return;
+            const buf = buffer.getChunk(bs);
+            if(!buf) continue;
             if(buf.length> 0)
                 pipes.push(buf);
             if(buffer.done)
@@ -210,21 +177,17 @@ export class AudioMixingTransform extends Transform {
         
 
         if(pipes.length > 0  ){
-            this.silentBuffer.setPause(true);
-            if(pipes.length > 1) this.alignBuffers(...pipes);
             const mix = this.mixChunk(pipes);
-             this.push(mix);
+            this.push(mix);
         }
-        else if (!anyPlaying){
-            this.silentBuffer.setPause(false);
-            this.push(this.silentBuffer.getChunk(bs));
+        else{
+            this.push(Buffer.alloc(bs).fill(0))
         }
     }
     
     addStream(stream: Readable, identifier: string) {
         this.buffers.set(identifier, new AudioBuffer(stream));
 
-        // Handle data from the stream
         stream.on('data', chunk => {
             if (this.buffers.has(identifier)) {
                 this.buffers.get(identifier)?.append(chunk);
@@ -234,14 +197,13 @@ export class AudioMixingTransform extends Transform {
             console.error('Stream error:', err);
         });
 
-        // Handle the end of the stream
         stream.on('end', () => {
             console.log('Stream ended.');
         });
     }
 
     canAddStreams() : boolean {
-        return this.buffers.size < 4;
+        return this.buffers.size < 5;
     }
 
     pauseStream(name: string){
@@ -259,6 +221,8 @@ export class AudioMixingTransform extends Transform {
     
 
     removeStream(name:string){
+        console.log(`removing in transform mixer ` + name);
+        this.buffers.get(name)?.destroy();
         this.buffers.delete(name);
         this.emit('streamdelete', name);
     }
@@ -284,24 +248,21 @@ export class AudioMixingTransform extends Transform {
     }
 
     mixChunk(pipes: Buffer[]) : Buffer {
-        if(pipes.length === 1) return pipes[0];
-        let maxSize = pipes[0].length;
+        const maxSize = Math.max(...pipes.map(m => m.length));
         const mixedChunk = Buffer.alloc(maxSize);
-        for (let i = 0; i < maxSize; i += 2) { // Iterate by 2 bytes for 16-bit samples
+        for (let i = 0; i < maxSize-1; i += 2) { // Iterate by 2 bytes for 16-bit samples
             let sum = 0;
             for(let j = 0; j < pipes.length; j++) {
                 const pipe = pipes[j];
-                if (pipe.length > i + 1) { // Ensure we can read a full 16-bit sample
+                if(i + 1 < pipe.length){  
                     const sample = pipe.readInt16LE(i);
                     sum += sample;
                 }
             }
-            
-            const mixedSample = Math.max(-32768, Math.min(32767, sum))
+            let mixedSample = sum; // Ensure floating-point division
+            mixedSample = Math.trunc(Math.max(-32768, Math.min(32767, mixedSample))); // Clamping and rounding
     
-            if (i < maxSize - 1) { // Ensure we don't write beyond the buffer
-                mixedChunk.writeInt16LE(mixedSample, i);
-            }
+            mixedChunk.writeInt16LE(mixedSample, i);
         }
         return mixedChunk;
     }   
@@ -327,35 +288,42 @@ class DynamicAudioMixer {
         this.mixer = new AudioMixingTransform();
         this.mixer.on("streamdelete", (id) => {
             const stream = this.streams.get(id);
-            
+             
             console.log("delete ",stream);
+            this.streams.delete(id);
             if(stream?.loop)
                 this.addStream(stream.url,id, stream.loop);
-
+        
         });
         this.mixer.on('error', (error) => {
             console.error(`Error in mixer :`, error);
         });
-        this.mixer.on('close', (error: any) => {
-            console.error(`Close in mixer :`, error);
+        this.mixer.on('close', () => {
+            console.error(`Close in mixer :`);
         });
         connection.player = createAudioPlayer();
         const resource = createAudioResource(this.mixer, { inputType: StreamType.Raw});
         connection.player.play(resource);
         connection.voiceConnection.subscribe(connection.player);
+        connection.voiceConnection.on('error', (error) => {
+            console.error(`Voice connection errror`, error);
+        });
         connection.player.on(AudioPlayerStatus.Idle, () => {
-            this.mixer = new AudioMixingTransform();
-            const resource = createAudioResource(this.mixer, { inputType: StreamType.Raw });
-            connection.player.play(resource);
+            console.log("Idleing mixer")
+        });
+        connection.player.on('error', (error) => {
+            console.error(`Error on player `,error);
         });
     }
 
-    pauseById(id: string){
-        return this.mixer.pauseStream(id);
+    pauseById(id: string) : boolean{
+        this.mixer.pauseStream(id);
+        return false;
     }
 
-    playById(id: string){
-        return this.mixer.playStream(id);
+    playById(id: string) : boolean {
+        this.mixer.playStream(id);
+        return true;
     }
 
     play(): boolean{
@@ -371,7 +339,7 @@ class DynamicAudioMixer {
     addStream(url: string, id: string, loop: boolean = false) {
         if (this.mixer.canAddStreams()) { 
 
-            const stream = ytdl(url, { filter:'audioonly', quality: 'highestaudio', dlChunkSize: 8000, highWaterMark: 16000 });
+            const stream = ytdl(url, { filter:'audioonly', quality: 'lowestaudio'});
             
             const ffmpeg = spawn('ffmpeg', [
                 '-i', 'pipe:0',
@@ -382,9 +350,15 @@ class DynamicAudioMixer {
             ]);
 
             stream.pipe(ffmpeg.stdin)
+            stream.on('error', (error) => {
+                console.error(`Error in stream :`, error);
+            });
 
+            stream.on('close', () => {
+                console.error(`close stream `);
+            });
             this.mixer.addStream(ffmpeg.stdout, id);
-            this.streams.set(id, {url: url, loop: true});
+            this.streams.set(id, {url: url, loop: loop});
         } else {
             throw new Error('Maximum number of streams reached');
         }
@@ -395,8 +369,6 @@ class DynamicAudioMixer {
 
 
     destroy(){
-        this.mixer.destroy();
-        this.connection.player.stop();
     }
         
 }

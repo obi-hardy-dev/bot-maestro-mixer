@@ -1,9 +1,3 @@
-import { AudioPlayer, 
-    AudioPlayerStatus,
-    AudioResource,
-    VoiceConnection,
-    createAudioPlayer,
-    createAudioResource} from "@discordjs/voice";
 import { CommandInteraction, Guild, } from "discord.js";
 import ytdl from "ytdl-core";
 import { globalEmitter } from './EventEmitter';
@@ -25,6 +19,7 @@ export class MusicPlayer {
     player: DynamicAudioMixer | undefined;
     isPlaying: boolean;
     currentTrack: number;
+    playingId: string | undefined;
     guild: Guild;
     loop: boolean;
     length: number;
@@ -109,10 +104,10 @@ export class MusicPlayer {
         if(!this.player) throw Error("Music Player | Unable to pause, no player created");
         
         if(this.isPlaying){
-            this.isPlaying = this.player!.pause() ? false : true;
+            this.isPlaying = this.player!.pauseById(this.playingId!) ? false : true;
         }
         else{
-            this.isPlaying = this.player.play() ? true : false;
+            this.isPlaying = this.player.playById(this.playingId!) ? true : false;this.playingId
         }
         return this.isPlaying;
     }
@@ -122,6 +117,7 @@ export class MusicPlayer {
         this.currentUrl = url; 
 
 
+        this.playingId = "urltrack";
         connection.mixer?.addStream(url, "urltrack")
         this.isPlaying = true;
     }
@@ -144,6 +140,9 @@ export class MusicPlayer {
     }
     
     next(connection: Connection): void {
+        console.log("next called");
+        const track = this.tracks[this.currentTrack];
+        connection.mixer?.removeStream("track"+track.trackName);
         this.currentTrack++;
         if(this.currentTrack >= this.tracks.length) this.currentTrack = this.tracks.length-1;
 
@@ -159,59 +158,6 @@ export class MusicPlayer {
         this.play(connection, this.currentTrack);
     }
 
-    /*join(voiceChannel?: VoiceBasedChannel) : void {
-
-        if(!voiceChannel){
-            voiceChannel = this.channel;
-        }
-
-        this.channel = voiceChannel;
-
-        if(!this.channel) throw Error("Missing channel, cannot join.")
-
-        const connection = joinVoiceChannel({
-            channelId: this.channel!.id,
-            guildId: this.guild.id,
-            adapterCreator: this.channel!.guild!.voiceAdapterCreator,
-        });
-        this.voiceConnection = connection;
-
-        if (this.voiceConnection) {
-            this.voiceConnection.off(VoiceConnectionStatus.Disconnected, this.onVoiceConnectionDisconnect.bind(this));
-        }
-
-        // Add new 'Disconnected' listener
-        this.voiceConnection.on(VoiceConnectionStatus.Disconnected, this.onVoiceConnectionDisconnect.bind(this));
-    }
-
-    private async onVoiceConnectionDisconnect() {
-        try {
-            await Promise.race([
-                entersState(this.voiceConnection!, VoiceConnectionStatus.Signalling, 5_000),
-                entersState(this.voiceConnection!, VoiceConnectionStatus.Connecting, 5_000),
-            ]);
-            // Connection is reconnecting
-        } catch (error) {
-            // Connection has fully disconnected
-            this.voiceConnection?.destroy();
-        }
-    }
-
-    leave() : void {
-        this.isPlaying = false;
-        if(this.player) {
-            this.player.pause();
-        }
-        if(this.channel){
-            this.channel = undefined;
-        }
-        if(this.voiceConnection){
-            this.voiceConnection?.destroy();
-            this.voiceConnection = undefined;
-        }
-    }
-    */
 }
-
 
 export default MusicPlayer

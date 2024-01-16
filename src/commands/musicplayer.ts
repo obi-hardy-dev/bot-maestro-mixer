@@ -217,9 +217,18 @@ export const leave = {
         .setName('leave')
         .setDescription('Leave voice channel'),
     async execute(interaction: CommandInteraction){
-        const connection = getConnection(interaction);
-        connectionManager.disconnect(interaction.guild!.id)
-        await interaction.reply(`Leaving channel`);
+        try{
+            const connection = getConnection(interaction);
+            connectionManager.disconnect(interaction.guild!.id)
+            await interaction.reply(`Leaving channel`);
+        }
+        catch(error){
+            let errorMsg = "Error occurred.";
+            if(error instanceof Error){
+                errorMsg = error.message;
+            }
+            await interaction.reply(errorMsg);    
+        }
     } 
 }
 
