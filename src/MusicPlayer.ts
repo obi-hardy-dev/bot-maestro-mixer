@@ -107,7 +107,7 @@ export class MusicPlayer {
             this.isPlaying = this.player!.pauseById(this.playingId!) ? false : true;
         }
         else{
-            this.isPlaying = this.player.playById(this.playingId!) ? true : false;this.playingId
+            this.isPlaying = this.player.playById(this.playingId!) ? true : false;
         }
         return this.isPlaying;
     }
@@ -132,24 +132,28 @@ export class MusicPlayer {
         console.log("play: " + this.currentTrack); 
         
         const track = this.tracks[this.currentTrack];
-
-        
-        connection.mixer?.addStream(track.url, "track" + track.trackName)
-
+        if(!track) throw Error("Music Player | No track found");
+        if(this.playingId === "urltrack") connection.mixer?.removeStream(this.playingId);
+        connection.mixer?.addStream(track.url, "track" + track.url)
+        this.playingId = "track" + track.url;
         this.isPlaying = true;
     }
     
     next(connection: Connection): void {
-        console.log("next called");
         const track = this.tracks[this.currentTrack];
-        connection.mixer?.removeStream("track"+track.trackName);
+        if(track)
+            connection.mixer?.removeStream("track"+track.url);
+        console.log(this.currentTrack);
         this.currentTrack++;
-        if(this.currentTrack >= this.tracks.length) this.currentTrack = this.tracks.length-1;
+        if(this.currentTrack >= this.tracks.length) this.currentTrack = 0;
 
         this.play(connection,this.currentTrack);
     }   
 
     prev(connection: Connection) : void {
+        const track = this.tracks[this.currentTrack];
+        if(track)
+            connection.mixer?.removeStream("track"+track.url);
         this.currentTrack--;
         if(this.currentTrack < 0) {
             this.currentTrack = 0;

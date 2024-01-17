@@ -3,6 +3,7 @@ import ytdl from 'ytdl-core';
 import { Readable, Stream, Transform, TransformCallback, } from 'stream';
 import { Connection } from './ConnectionManager';
 import { spawn } from 'child_process';
+import EventEmitter from 'events';
 
 const MB = 1024 * 1024;
 class AudioBuffer{
@@ -58,8 +59,6 @@ class AudioBuffer{
 
         }
 
-       
-
         const chunk = this.buffer.subarray(0, size);
         this.buffer = this.buffer.subarray(size);
         if (this.isFull && (this.buffer.length <= this.maxSize * 0.5 && this.dataSentInSec < this.timeProcessedInSec + .5 )) { // 50% threshold
@@ -104,8 +103,6 @@ class AudioBuffer{
 
     destroy(){
         this.setPause(true);
-        this.buffer = Buffer.alloc(0);
-        this.sourceStream.destroy();
     }
 }
 
@@ -144,22 +141,6 @@ export class AudioMixingTransform extends Transform {
         bufferSize = bufferSize - (bufferSize % 2);
         return bufferSize;
     }     
-    alignBuffers(...buffers: Buffer[]) {
-        
-        // Determine the size difference
-        const maxLength = Math.max(...buffers.map(buffer => buffer.length));
-
-        // Pad all buffers to match the length of the longest buffer
-        return buffers.map(buffer => {
-            if (buffer.length < maxLength) {
-                console.log("padded");
-                // Calculate the size difference and pad with silence
-                const sizeDifference = maxLength - buffer.length;
-                return Buffer.concat([buffer, Buffer.alloc(sizeDifference).fill(0)]);
-            }
-            return buffer; // No padding needed if the buffer is already the longest
-        });
-    }
 
     mixAndOutput() {
     
@@ -171,7 +152,7 @@ export class AudioMixingTransform extends Transform {
             if(buf.length> 0)
                 pipes.push(buf);
             if(buffer.done)
-                this.removeStream(key);
+                this.removeStream(key, true);
 
         }
         
@@ -219,12 +200,11 @@ export class AudioMixingTransform extends Transform {
         buffer.setPause(false);
     }
     
-
-    removeStream(name:string){
+    removeStream(name:string, ended = false){
         console.log(`removing in transform mixer ` + name);
         this.buffers.get(name)?.destroy();
         this.buffers.delete(name);
-        this.emit('streamdelete', name);
+        this.emit('streamdelete', name, ended);
     }
 
     playAll(): boolean {
@@ -279,21 +259,21 @@ export class AudioMixingTransform extends Transform {
     }
 }
 
-class DynamicAudioMixer {
+class DynamicAudioMixer extends EventEmitter{
     private streams = new Map<string, {url:string, loop: boolean }>();
     private mixer: AudioMixingTransform;
-    private connection: Connection;
     constructor(connection: Connection) {
-        this.connection = connection;
+        super();
         this.mixer = new AudioMixingTransform();
-        this.mixer.on("streamdelete", (id) => {
+        this.mixer.on("streamdelete", (id: string, ended: boolean) => {
             const stream = this.streams.get(id);
-             
+            
             console.log("delete ",stream);
             this.streams.delete(id);
-            if(stream?.loop)
-                this.addStream(stream.url,id, stream.loop);
-        
+            if(ended && id.includes("track")) this.emit('song-done', stream?.loop);
+            else if(ended && stream?.loop){
+                this.addStream(stream!.url, id, stream?.loop);
+            }
         });
         this.mixer.on('error', (error) => {
             console.error(`Error in mixer :`, error);
@@ -301,19 +281,26 @@ class DynamicAudioMixer {
         this.mixer.on('close', () => {
             console.error(`Close in mixer :`);
         });
-        connection.player = createAudioPlayer();
-        const resource = createAudioResource(this.mixer, { inputType: StreamType.Raw});
-        connection.player.play(resource);
-        connection.voiceConnection.subscribe(connection.player);
-        connection.voiceConnection.on('error', (error) => {
-            console.error(`Voice connection errror`, error);
-        });
-        connection.player.on(AudioPlayerStatus.Idle, () => {
-            console.log("Idleing mixer")
-        });
-        connection.player.on('error', (error) => {
-            console.error(`Error on player `,error);
-        });
+        this.connect(connection);
+    }
+
+
+    connect(connection: Connection){
+        if(connection.voiceConnection){
+            const player = createAudioPlayer();
+            const resource = createAudioResource(this.mixer, { inputType: StreamType.Raw});
+            player.play(resource);
+            connection.voiceConnection.subscribe(player);
+            connection.voiceConnection.on('error', (error) => {
+                console.error(`Voice connection errror`, error);
+            });
+            player.on(AudioPlayerStatus.Idle, () => {
+                console.log("Idleing mixer")
+            });
+            player.on('error', (error) => {
+                console.error(`Error on player `,error);
+            });
+        }
     }
 
     pauseById(id: string) : boolean{

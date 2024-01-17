@@ -1,13 +1,14 @@
 import { AudioPlayer, VoiceConnection, VoiceConnectionStatus, createAudioPlayer, entersState, joinVoiceChannel } from "@discordjs/voice"
-import { Guild, VoiceBasedChannel } from "discord.js";
-import { globalEmitter } from './EventEmitter';
+import { Guild, GuildForumThreadManager, VoiceBasedChannel } from "discord.js";
 import DynamicAudioMixer from "./AudioMixer";
-import { disconnect } from "process";
+import MusicPlayer from "./MusicPlayer";
+import SoundEffectManager from "./SoundEffectManager";
 
 export type Connection = {
-    voiceConnection: VoiceConnection,
+    voiceConnection: VoiceConnection | undefined,
     guild: Guild,
-    player: AudioPlayer,
+    musicPlayer: MusicPlayer,
+    effectPlayer: SoundEffectManager,
     mixer: DynamicAudioMixer | undefined;
 }
 
@@ -18,10 +19,28 @@ class ConnectionManager {
         this.voiceConnections = new Map<string, Connection>();
     }
     
+    getGuild(guild: Guild) : Connection {
+        let connection = this.voiceConnections.get(guild.id);
+        if(!connection){
+            console.log(`connection create`);
+            connection = { 
+                guild: guild,
+                musicPlayer: new MusicPlayer(guild),
+                effectPlayer: new SoundEffectManager(guild),
+            } as Connection;
+
+            connection.mixer = new DynamicAudioMixer(connection);
+            this.voiceConnections.set(guild.id, connection);
+        }
+        return connection;
+    }
 
     connect(guild: Guild, voiceChannel: VoiceBasedChannel) : Connection{
         let connection = this.voiceConnections.get(guild.id);
         if(!connection){
+            connection = this.getGuild(guild);
+        }
+        if(!connection?.voiceConnection){
             console.log(`connection create`);
             const voiceConnection = this.createConnection(voiceChannel);
             voiceConnection.on(VoiceConnectionStatus.Disconnected, async (oldState, newState) => {
@@ -38,14 +57,14 @@ class ConnectionManager {
                     this.disconnect(guild.id);
                 }
             });
-            connection = { 
-                voiceConnection: voiceConnection,
-                guild: guild,
-                player: createAudioPlayer(),
-            } as Connection;
-
+            connection.voiceConnection = voiceConnection;
             connection.mixer = new DynamicAudioMixer(connection);
-            this.voiceConnections.set(guild.id, connection);
+            connection.mixer.on('song-done', (loop) => {
+                if(loop)
+                    connection?.musicPlayer.play(connection);
+                else 
+                    connection?.musicPlayer.next(connection);
+            })
         }
 
         return connection;
@@ -54,10 +73,10 @@ class ConnectionManager {
     disconnect(id: string) {
         const connection = this.voiceConnections.get(id);
     
-        if(!connection) throw new Error("No connection to disconnect");
+        if(!connection?.voiceConnection) throw new Error("No connection to disconnect");
 
-        connection.voiceConnection.disconnect();
-        this.voiceConnections.delete(id);
+        connection.voiceConnection = undefined;
+        connection.mixer = undefined;
     }
     
     createConnection(voiceChannel: VoiceBasedChannel) : VoiceConnection {

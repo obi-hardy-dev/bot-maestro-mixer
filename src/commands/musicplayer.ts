@@ -7,7 +7,6 @@ import MusicPlayer from "../MusicPlayer";
 import { Connection } from "../ConnectionManager";
 import { connectionManagerInstance as connectionManager } from "../index"
 
-const musicPlayers = new Map<string, MusicPlayer>();
 
 function getOptionValue<T>(interaction: CommandInteraction, name: string) : T | undefined{
     const option = interaction.options.get(name);
@@ -28,16 +27,6 @@ function getConnection(interaction: CommandInteraction) : Connection {
         console.log(errorMsg);    
         throw new Error(errorMsg);
     } 
-}
-
-function getMusicPlayer(guild: Guild) : MusicPlayer {
-    const guildId = guild.id;
-    let mplayer = musicPlayers.get(guildId);
-    if(!mplayer){
-        mplayer = new MusicPlayer(guild);
-        musicPlayers.set(guildId, mplayer);
-    }
-    return mplayer;
 }
 
 function getVoiceBasedChannel(interaction: CommandInteraction) : VoiceBasedChannel {
@@ -61,8 +50,8 @@ export const playurl = {
         console.log("play from url")
         try{
             const songUrl = getOptionValue<string>(interaction,'url');
-            const mplayer = getMusicPlayer(interaction.guild!);
             const connection = getConnection(interaction);
+            const mplayer = connection.musicPlayer;
             mplayer.playFromUrl(connection, songUrl!);
             await interaction.reply(`Playing song from URL: ${songUrl}`);
         }
@@ -82,7 +71,8 @@ export const toggleloop = {
         .setDescription('Toggle loop currently playing song'),
     async execute(interaction: CommandInteraction){
         try{
-            const mplayer = getMusicPlayer(interaction.guild!);
+            const connection = getConnection(interaction);
+            const mplayer = connection.musicPlayer;
             mplayer.loop = !mplayer.loop;
             await interaction.reply(`${mplayer.loop ? "Looping" : "Not looping" } currently playing song: ${mplayer.currentlyPlaying()}`);
         }
@@ -106,8 +96,8 @@ export const play = {
     async execute(interaction: CommandInteraction) {
         try{
             const num = getOptionValue<number>(interaction,'num');
-            const mplayer = getMusicPlayer(interaction.guild!);
             const connection = getConnection(interaction);
+            const mplayer = connection.musicPlayer;
             mplayer.play(connection, num);
             await interaction.reply(`Playing song at: ${num}`);
         }
@@ -127,8 +117,8 @@ export const togglepause = {
         .setDescription('Pause or play currently playing song'),
     async execute(interaction: CommandInteraction){
         try{
-            const mplayer = getMusicPlayer(interaction.guild!);
             const connection = getConnection(interaction);
+            const mplayer = connection.musicPlayer;
 
 
             const playing = mplayer.togglePause(connection);
@@ -154,7 +144,8 @@ export const add = {
                 .setRequired(true)),
     async execute(interaction: CommandInteraction) {
         const songUrl = getOptionValue<string>(interaction,'url');
-        const mplayer = getMusicPlayer(interaction.guild!);
+        const connection = getConnection(interaction);
+        const mplayer = connection.musicPlayer;
         mplayer.add(interaction);
         await interaction.reply(`Adding song to track list from URL: ${songUrl}`);
     }
@@ -197,7 +188,7 @@ export const remove = {
     async execute(interaction: CommandInteraction) {
         try{
             const tracknum = getOptionValue<number>(interaction,'tracknum');
-            const mplayer = getMusicPlayer(interaction.guild!);
+            const mplayer = connectionManager.getGuild(interaction.guild!).musicPlayer;
             mplayer.remove(tracknum);
             await interaction.reply(`Removing track: ${tracknum} from the track list`);
         }
@@ -218,7 +209,6 @@ export const leave = {
         .setDescription('Leave voice channel'),
     async execute(interaction: CommandInteraction){
         try{
-            const connection = getConnection(interaction);
             connectionManager.disconnect(interaction.guild!.id)
             await interaction.reply(`Leaving channel`);
         }
@@ -237,7 +227,7 @@ export const listtracks = {
         .setName('listtracks')
         .setDescription('List currently queued tracks'),
     async execute(interaction: CommandInteraction){
-        const mplayer = getMusicPlayer(interaction.guild!);
+        const mplayer = connectionManager.getGuild(interaction.guild!).musicPlayer;
         const tracks = mplayer.list();
         if(tracks && tracks.length > 0) await interaction.reply(tracks.toString());
         else await interaction.reply("No tracks");
@@ -250,10 +240,8 @@ export const next = {
         .setDescription('Play next queued track'),
     async execute(interaction: CommandInteraction){
         try{
-            const mplayer = getMusicPlayer(interaction.guild!);
-            const channel = getVoiceBasedChannel(interaction);
-            const connection = connectionManager.connect(interaction.guild!, channel);
-
+            const connection = getConnection(interaction);
+            const mplayer = connection.musicPlayer;
             mplayer.next(connection);
 
             await interaction.reply(`Playing next song: ${mplayer.currentlyPlaying()}`);
@@ -274,9 +262,8 @@ export const prev = {
         .setDescription('Play previously queued track'),
     async execute(interaction: CommandInteraction){
         try{
-            const mplayer = getMusicPlayer(interaction.guild!);
-            const channel = getVoiceBasedChannel(interaction);
-            const connection = connectionManager.connect(interaction.guild!, channel);
+            const connection = getConnection(interaction);
+            const mplayer = connection.musicPlayer;
             mplayer.prev(connection);
             await interaction.reply(`Playing previous song: ${mplayer.currentlyPlaying()}`);
         }
