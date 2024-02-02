@@ -23,7 +23,6 @@ export class MusicPlayer {
     guild: Guild;
     loop: boolean;
     length: number;
-    currentUrl: string | undefined;
 
 
     constructor(guild: Guild){
@@ -113,10 +112,6 @@ export class MusicPlayer {
     }
 
     playFromUrl(connection: Connection, url: string) : void {        
-
-        this.currentUrl = url; 
-
-
         this.playingId = "urltrack";
         connection.mixer?.addStream(url, "urltrack")
         this.isPlaying = true;
@@ -160,6 +155,15 @@ export class MusicPlayer {
         }
         
         this.play(connection, this.currentTrack);
+    }
+
+    clear(){
+        this.playingId = undefined;
+        this.tracks = [];
+        this.currentTrack = -1;
+        this.length = 0;
+        this.loop = false;
+        this.isPlaying = false;
     }
 
 }
