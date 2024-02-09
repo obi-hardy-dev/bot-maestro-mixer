@@ -3,6 +3,7 @@ import ytdl from 'ytdl-core';
 import { Readable, Stream, Transform, TransformCallback, } from 'stream';
 import { Connection } from './ConnectionManager';
 import { spawn } from 'child_process';
+import fs from 'fs';
 import EventEmitter from 'events';
 
 const MB = 1024 * 1024;
@@ -143,7 +144,6 @@ export class AudioMixingTransform extends Transform {
     }     
 
     mixAndOutput() {
-    
         const bs = this.getBufferSize()
         const pipes: Buffer[] =[];
         for(const [key, buffer] of this.buffers){
@@ -174,10 +174,6 @@ export class AudioMixingTransform extends Transform {
                 this.buffers.get(identifier)?.append(chunk);
             }
         });
-        stream.on('error', (err) => {
-            console.error('Stream error:', err);
-        });
-
         stream.on('end', () => {
             console.log('Stream ended.');
         });
@@ -324,32 +320,38 @@ class DynamicAudioMixer extends EventEmitter{
     }
 
     addStream(url: string, id: string, loop: boolean = false) {
-        if (this.mixer.canAddStreams()) { 
-
-            const stream = ytdl(url, { filter:'audioonly', quality: 'lowestaudio'});
-            
-            const ffmpeg = spawn('ffmpeg', [
-                '-i', 'pipe:0',
-                '-f', 's16le',
-                '-ar', '48000',
-                '-ac', '2',
-                'pipe:1',
-            ]);
-
-            stream.pipe(ffmpeg.stdin)
-            stream.on('error', (error) => {
-                console.error(`Error in stream :`, error);
-            });
-
-            stream.on('close', () => {
-                console.error(`close stream `);
-            });
-            this.mixer.addStream(ffmpeg.stdout, id);
-            this.streams.set(id, {url: url, loop: loop});
-        } else {
+        if (!this.mixer.canAddStreams()) {
             throw new Error('Maximum number of streams reached');
-        }
+        } 
+
+        
+        const stream = ytdl(url, { filter:'audioonly', quality: 'lowestaudio'},);
+        const ffmpeg = spawn('ffmpeg', [
+            '-i', 'pipe:0',
+            '-f', 's16le',
+            '-ar', '48000',
+            '-ac', '2',
+            'pipe:1',
+        ]);
+
+        stream.pipe(ffmpeg.stdin)
+        stream.on('error', (error) => {
+            console.error(`Error in stream :`, error);
+            const stream = this.streams.get(id);
+            
+            this.removeStream(id);
+            this.addStream(stream!.url, id, stream!.loop)
+        });
+
+
+        stream.on('close', () => {
+            console.error(`close stream `);
+        });
+
+        this.mixer.addStream(ffmpeg.stdout, id);
+        this.streams.set(id, {url: url, loop: loop});
     } 
+
     removeStream(id: string) {
         this.mixer.removeStream(id);
     }

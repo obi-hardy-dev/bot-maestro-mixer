@@ -181,44 +181,26 @@ export const addeffect = {
             option.setName('loop')
                 .setDescription('Set the effect to loop, default is false')),
     async execute(interaction: CommandInteraction) {
-        await interaction.deferReply();
-        const seUrl = getOptionValue<string>(interaction,'url');
-        const seName = getOptionValue<string>(interaction,'name');
-        const seLoop = getOptionValue<boolean>(interaction,'loop');
-        console.log("Add Effect " + seUrl + " " + seName + " " + seLoop );
-        const seManager = getSoundEffectManager(interaction.guild!);
-        seManager.add(seUrl!, seName!, seLoop);
-        await interaction.editReply(`Adding song to track list from URL: ${seUrl}`);
-    }
-};
-
-/*
- * TODO remove this from MusicPlayer commands and add to a connection manager class
-export const join = {
-    data: new SlashCommandBuilder()
-        .setName('join')
-        .setDescription('Join voice channel'),
-    async execute(interaction: CommandInteraction){
         try{
-            const channel : VoiceBasedChannel | undefined = getChannel(interaction);
+            await interaction.deferReply();
+            const seUrl = getOptionValue<string>(interaction,'url');
+            const seName = getOptionValue<string>(interaction,'name');
+            const seLoop = getOptionValue<boolean>(interaction,'loop');
+            console.log("Add Effect " + seUrl + " " + seName + " " + seLoop );
             const seManager = getSoundEffectManager(interaction.guild!);
-            setChannelIfNone(seManager, interaction);
-        
-            seManager.join(seManager.channel);
-            if(channel) {
-                await interaction.reply(`Joining ${channel!.name}`);
-            }
+            seManager.add(seUrl!, seName!, seLoop);
+            await interaction.editReply(`Adding song to track list from URL: ${seUrl}`);
         }
         catch(error){
             let errorMsg = "Error occurred.";
             if(error instanceof Error){
                 errorMsg = error.message;
             }
-            await interaction.reply(errorMsg);    
+            await interaction.editReply(errorMsg);    
         }
     }
-}
-*/
+};
+
 export const removeeffect = {
     data: new SlashCommandBuilder()
         .setName('removeeffect')
@@ -244,30 +226,25 @@ export const removeeffect = {
         
     }
 }
-/*
- * Same as Join
-export const leave = {
-    data: new SlashCommandBuilder()
-        .setName('leave')
-        .setDescription('Leave voice channel'),
-    async execute(interaction: CommandInteraction){
-        const seManager = getSoundEffectManager(interaction.guild!);
-        seManager.leave();
-        await interaction.reply(`Leaving channel`);
-    } 
-}
-*/
 
 export const listeffects = {
     data: new SlashCommandBuilder()
         .setName('listeffects')
         .setDescription('List all saved effects'),
     async execute(interaction: CommandInteraction){
-        await interaction.deferReply();
-        const seManager = getSoundEffectManager(interaction.guild!);
-        const tracks = seManager.list();
-        if(tracks && tracks.length > 0) await interaction.editReply(tracks.join('\n'));
-        else await interaction.editReply("No effects");
+        try{
+            await interaction.deferReply();
+            const seManager = getSoundEffectManager(interaction.guild!);
+            const tracks = seManager.list();
+            if(tracks && tracks.length > 0) await interaction.editReply(tracks.join('\n'));
+            else await interaction.editReply("No effects");
+        }catch(error){
+            let errorMsg = "Error occurred.";
+            if(error instanceof Error){
+                errorMsg = error.message;
+            }
+            await interaction.editReply(errorMsg);    
+        }
     }
 }
 

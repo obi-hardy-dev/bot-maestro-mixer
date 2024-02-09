@@ -7,7 +7,6 @@ import MusicPlayer from "../MusicPlayer";
 import { Connection } from "../ConnectionManager";
 import { connectionManagerInstance as connectionManager } from "../index"
 
-
 function getOptionValue<T>(interaction: CommandInteraction, name: string) : T | undefined{
     const option = interaction.options.get(name);
 
@@ -99,7 +98,8 @@ export const play = {
             const connection = getConnection(interaction);
             const mplayer = connection.musicPlayer;
             mplayer.play(connection, num);
-            await interaction.reply(`Playing song at: ${num}`);
+            const playing = mplayer.currentlyPlaying();
+            await interaction.reply(`Playing song: ${playing}`);
         }
         catch(error){
             let errorMsg = "Error occurred.";
@@ -120,11 +120,10 @@ export const togglepause = {
             const connection = getConnection(interaction);
             const mplayer = connection.musicPlayer;
 
-
             const playing = mplayer.togglePause(connection);
             await interaction.reply(`${playing ? "Playing" : "Pausing" } currently playing song: ${mplayer.currentlyPlaying()}`);
         }
-        catch(error){
+        catch(error) {
             let errorMsg = "Error occurred.";
             if(error instanceof Error){
                 errorMsg = error.message;
@@ -143,11 +142,19 @@ export const add = {
                 .setDescription('The URL of the song to add to queue')
                 .setRequired(true)),
     async execute(interaction: CommandInteraction) {
-        const songUrl = getOptionValue<string>(interaction,'url');
-        const connection = getConnection(interaction);
-        const mplayer = connection.musicPlayer;
-        mplayer.add(interaction);
-        await interaction.reply(`Adding song to track list from URL: ${songUrl}`);
+        try{
+            const songUrl = getOptionValue<string>(interaction,'url');
+            const connection = getConnection(interaction);
+            const mplayer = connection.musicPlayer;
+            mplayer.add(interaction);
+            await interaction.reply(`Adding song to track list from URL: ${songUrl}`);
+        }catch(error){
+            let errorMsg = "Error occurred.";
+            if(error instanceof Error) {
+                errorMsg = error.message;
+            }
+            await interaction.reply(errorMsg);    
+        }
     }
 };
 

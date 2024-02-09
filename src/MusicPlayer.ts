@@ -101,12 +101,11 @@ export class MusicPlayer {
     togglePause(connection: Connection) : boolean {
         this.player = connection.mixer;
         if(!this.player) throw Error("Music Player | Unable to pause, no player created");
-        
         if(this.isPlaying){
-            this.isPlaying = this.player!.pauseById(this.playingId!) ? false : true;
+            this.isPlaying = this.player!.pauseById(this.playingId!);
         }
         else{
-            this.isPlaying = this.player.playById(this.playingId!) ? true : false;
+            this.isPlaying = this.player.playById(this.playingId!);
         }
         return this.isPlaying;
     }
@@ -128,10 +127,14 @@ export class MusicPlayer {
         
         const track = this.tracks[this.currentTrack];
         if(!track) throw Error("Music Player | No track found");
-        if(this.playingId === "urltrack") connection.mixer?.removeStream(this.playingId);
+        if(this.playingId) connection.mixer?.removeStream(this.playingId);
         connection.mixer?.addStream(track.url, "track" + track.url)
-        this.playingId = "track" + track.url;
+        this.playingId = "track" + track.url; 
         this.isPlaying = true;
+    }
+
+    stop(connection: Connection) {
+        if(this.playingId) connection.mixer?.removeStream(this.playingId);
     }
     
     next(connection: Connection): void {
