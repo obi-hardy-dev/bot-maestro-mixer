@@ -3,6 +3,9 @@ import { Connection } from "./ConnectionManager";
 import DynamicAudioMixer from "./AudioMixer";
 import { Guild } from 'discord.js';
 
+enum UrlType {
+    YouTube
+}
 type SoundEffect = {
     name: string, 
     url: string,
@@ -66,7 +69,8 @@ class SoundEffectManager {
         }
         const effect = this.effects.filter((effect) => effect.name === name)[0];
         if(!effect) throw new Error('Effect not found');
-        
+        effect.isPlaying = true;
+        effect.player = connection.mixer;
         connection.mixer!.addStream(effect.url, "effect" + effect.name, effect.loop)
         
     }
@@ -79,8 +83,16 @@ class SoundEffectManager {
         return se.loop;
     }
 
+    stop(name: string) {
+        const se = this.effects.filter((effect) => effect.name == name)[0];
+        console.log(se);
+        if(se?.isPlaying){
+            console.log("stopping: " + name);
+            se.player!.stopById("effect"+name);
+        }
+    }
     togglePause(name: string) : boolean{
-        const se = this.currentlyPlaying.filter((effect) => effect.name == name)[0];
+        const se = this.effects.filter((effect) => effect.name == name)[0];
         if(!se.player) throw Error("Effect Manager | Unable to pause, no player created");
         
         if(se.isPlaying){

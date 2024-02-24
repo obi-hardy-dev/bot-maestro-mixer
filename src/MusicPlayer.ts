@@ -134,7 +134,8 @@ export class MusicPlayer {
     }
 
     stop(connection: Connection) {
-        if(this.playingId) connection.mixer?.removeStream(this.playingId);
+        if(this.playingId) connection.mixer?.stopById(this.playingId);
+        this.playingId = undefined;
     }
     
     next(connection: Connection): void {

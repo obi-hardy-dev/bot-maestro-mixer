@@ -180,7 +180,7 @@ export class AudioMixingTransform extends Transform {
     }
 
     canAddStreams() : boolean {
-        return this.buffers.size < 5;
+        return this.buffers.size < 10;
     }
 
     pauseStream(name: string){
@@ -280,7 +280,6 @@ class DynamicAudioMixer extends EventEmitter{
         this.connect(connection);
     }
 
-
     connect(connection: Connection){
         if(connection.voiceConnection){
             const player = createAudioPlayer();
@@ -299,6 +298,9 @@ class DynamicAudioMixer extends EventEmitter{
         }
     }
 
+    stopById(id: string) {
+        this.removeStream(id);
+    }
     pauseById(id: string) : boolean{
         this.mixer.pauseStream(id);
         return false;
@@ -324,7 +326,6 @@ class DynamicAudioMixer extends EventEmitter{
             throw new Error('Maximum number of streams reached');
         } 
 
-        
         const stream = ytdl(url, { filter:'audioonly', quality: 'lowestaudio'},);
         const ffmpeg = spawn('ffmpeg', [
             '-i', 'pipe:0',
@@ -353,7 +354,14 @@ class DynamicAudioMixer extends EventEmitter{
     } 
 
     removeStream(id: string) {
-        this.mixer.removeStream(id);
+        //set loop to false so it can be removed
+        const s = this.streams.get(id);
+        if(s) {
+            s!.loop = false;
+            this.streams.set(id, s)
+        }
+        console.log(s);
+        this.mixer.removeStream(id); 
     }
 
 

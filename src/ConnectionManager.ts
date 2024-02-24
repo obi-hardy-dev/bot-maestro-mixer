@@ -59,8 +59,8 @@ class ConnectionManager {
             });
             connection.voiceConnection = voiceConnection;
             connection.mixer = new DynamicAudioMixer(connection);
-            connection.mixer.on('song-done', (loop) => {
-                if(loop)
+            connection.mixer.on('song-done', () => {
+                if(connection?.musicPlayer.loop)
                     connection?.musicPlayer.play(connection);
                 else 
                     connection?.musicPlayer.next(connection);

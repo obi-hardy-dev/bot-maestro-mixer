@@ -201,13 +201,40 @@ export const addeffect = {
     }
 };
 
+export const stopeffect = {
+    data: new SlashCommandBuilder()
+        .setName('stopeffect')
+        .setDescription('Stop effect from playing')
+        .addStringOption(option => 
+            option.setName('name')
+                .setDescription('The name of a playing effect to remove')
+                .setRequired(true)),
+    async execute(interaction: CommandInteraction) {
+        try{
+            await interaction.deferReply();
+            const seName = getOptionValue<string>(interaction,'name');
+            const seManager = getSoundEffectManager(interaction.guild!);
+            seManager.stop(seName!);
+            await interaction.editReply(`Stopping effect: ${seName} from playing`);
+        }
+        catch(error){
+            let errorMsg = "Error occurred.";
+            if(error instanceof Error){
+                errorMsg = error.message;
+            }
+            await interaction.editReply(errorMsg);    
+        }
+    }
+}
+
 export const removeeffect = {
     data: new SlashCommandBuilder()
         .setName('removeeffect')
         .setDescription('Remove from sound effect list')
         .addStringOption(option => 
             option.setName('name')
-                .setDescription('The name of the saved effect to remove')),
+                .setDescription('The name of the saved effect to remove')
+                .setRequired(true)),
     async execute(interaction: CommandInteraction) {
         try{
             await interaction.deferReply();
