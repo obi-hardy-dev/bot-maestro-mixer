@@ -1,62 +1,7 @@
 import { CommandInteraction,
-    Guild, 
-    GuildMember, 
     SlashCommandBuilder, 
-    VoiceBasedChannel, } from "discord.js";
-import SoundEffectManager from "../SoundEffectManager";
-import { Connection } from "../ConnectionManager";
-import { connectionManagerInstance as connectionManager } from "../index"
-
-
-const seManagers = new Map<string, SoundEffectManager>();
-
-function getOptionValue<T>(interaction: CommandInteraction, name: string) : T | undefined{
-    const option = interaction.options.get(name);
-    return option ? option.value as T : undefined;
-}
-
-function getSoundEffectManager(guild: Guild) : SoundEffectManager {
-    const guildId = guild.id;
-    let seManager = seManagers.get(guildId);
-    if(!seManager){
-        seManager = new SoundEffectManager(guild);
-        seManagers.set(guildId, seManager);
-    }
-    return seManager!;
-}
-
-function getConnection(interaction: CommandInteraction) : Connection {
-    try{
-        const guild = interaction.guild!;
-        const channel = getVoiceBasedChannel(interaction)!;
-        return connectionManager.connect(guild, channel);
-    } catch(error) {
-        let errorMsg = "Error occurred.";
-        if(error instanceof Error){
-            errorMsg = error.message;
-        }
-        console.log(errorMsg);    
-        throw new Error(errorMsg);
-    } 
-}
-
-function getVoiceBasedChannel(interaction: CommandInteraction) : VoiceBasedChannel {
-    const member = interaction.member as GuildMember;//|| await interaction.guild.members.fetch(interaction.user.id);
-    const channel = member?.voice.channel;
-    if(!channel || !channel.isVoiceBased) {
-        throw new Error(`Must be in a voice channel to use this request`);
-    }
-    return channel;
-}
-/*
- * TODO manage voice connection for Sound Effects?
-function setChannelIfNone(seManager: SoundEffectManager, interaction: CommandInteraction) : void {
-    if(seManager.channel == null){
-        seManager.channel = getChannel(interaction);
-    }
-    seManager.join(seManager.channel);
-}
-*/
+} from "discord.js";
+import { getOptionValue, getConnection} from "../utils/Interaction";
 
 export const playurleffect = {
     data: new SlashCommandBuilder()
@@ -71,9 +16,8 @@ export const playurleffect = {
             await interaction.deferReply();
             console.log("play url effect");
             const seUrl = getOptionValue<string>(interaction,'url');
-            const seManager = getSoundEffectManager(interaction.guild!);
-            const connection = getConnection(interaction);
-            seManager.playFromUrl(connection, seUrl!);
+            const seManager = getConnection(interaction).effectPlayer;
+            seManager.playFromUrl(seUrl!);
             await interaction.editReply(`Playing song from URL: ${seUrl}`);
         }
         catch(error) {
@@ -98,7 +42,7 @@ export const toggleloopeffect = {
         try{
             await interaction.deferReply();
             const name = getOptionValue<string>(interaction,'name');
-            const seManager = getSoundEffectManager(interaction.guild!);
+            const seManager = getConnection(interaction).effectPlayer;
             const loop = seManager.toggleLoop(name!);
             await interaction.editReply(`${loop ? "Looping" : "Not looping" } sound effect: ${name}`);
         }
@@ -124,9 +68,9 @@ export const playeffect = {
         try{
             await interaction.deferReply();
             const name = getOptionValue<string>(interaction,'name');
-            const seManager = getSoundEffectManager(interaction.guild!);
+            const seManager = getConnection(interaction).effectPlayer;
             const connection = getConnection(interaction);
-            seManager.play(connection, name!);
+            seManager.play(name!);
             await interaction.editReply(`Playing effect: ${name}`);
         }
         catch(error){
@@ -150,9 +94,9 @@ export const togglepauseeffect = {
     async execute(interaction: CommandInteraction){
         try{
             await interaction.deferReply();
-            const name : string = getOptionValue<string>(interaction,'name')as string;
-            const seManager = getSoundEffectManager(interaction.guild!);
-            const playing = seManager.togglePause(name!);
+            const name : string = getOptionValue<string>(interaction,'name')!;
+            const seManager = getConnection(interaction).effectPlayer;
+            const playing = seManager.togglePause(name);
             await interaction.editReply(`${playing ? "Playing" : "Pausing" } currently playing effect: ${name}`);
         }
         catch(error){
@@ -187,7 +131,7 @@ export const addeffect = {
             const seName = getOptionValue<string>(interaction,'name');
             const seLoop = getOptionValue<boolean>(interaction,'loop');
             console.log("Add Effect " + seUrl + " " + seName + " " + seLoop );
-            const seManager = getSoundEffectManager(interaction.guild!);
+            const seManager = getConnection(interaction).effectPlayer;
             seManager.add(seUrl!, seName!, seLoop);
             await interaction.editReply(`Adding song to track list from URL: ${seUrl}`);
         }
@@ -213,7 +157,7 @@ export const stopeffect = {
         try{
             await interaction.deferReply();
             const seName = getOptionValue<string>(interaction,'name');
-            const seManager = getSoundEffectManager(interaction.guild!);
+            const seManager = getConnection(interaction).effectPlayer;
             seManager.stop(seName!);
             await interaction.editReply(`Stopping effect: ${seName} from playing`);
         }
@@ -239,7 +183,7 @@ export const removeeffect = {
         try{
             await interaction.deferReply();
             const seName = getOptionValue<string>(interaction,'name');
-            const seManager = getSoundEffectManager(interaction.guild!);
+            const seManager = getConnection(interaction).effectPlayer;
             seManager.remove(seName!);
             await interaction.editReply(`Removing track: ${seName} from the effect list`);
         }
@@ -261,7 +205,7 @@ export const listeffects = {
     async execute(interaction: CommandInteraction){
         try{
             await interaction.deferReply();
-            const seManager = getSoundEffectManager(interaction.guild!);
+            const seManager = getConnection(interaction).effectPlayer;
             const tracks = seManager.list();
             if(tracks && tracks.length > 0) await interaction.editReply(tracks.join('\n'));
             else await interaction.editReply("No effects");

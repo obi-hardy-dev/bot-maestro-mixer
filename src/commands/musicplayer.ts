@@ -1,32 +1,11 @@
 import { CommandInteraction,
-    Guild, 
     GuildMember, 
     SlashCommandBuilder, 
     VoiceBasedChannel, } from "discord.js";
-import MusicPlayer from "../MusicPlayer";
-import { Connection } from "../ConnectionManager";
 import { connectionManagerInstance as connectionManager } from "../index"
+import { CreateTrack } from "../Track"
+import { getOptionValue, getConnection } from "../utils/Interaction";
 
-function getOptionValue<T>(interaction: CommandInteraction, name: string) : T | undefined{
-    const option = interaction.options.get(name);
-
-    return option ? option.value as T : undefined;
-}
-
-function getConnection(interaction: CommandInteraction) : Connection {
-    try{
-        const guild = interaction.guild!;
-        const channel = getVoiceBasedChannel(interaction)!;
-        return connectionManager.connect(guild, channel);
-    } catch(error) {
-        let errorMsg = "Error occurred.";
-        if(error instanceof Error){
-            errorMsg = error.message;
-        }
-        console.log(errorMsg);    
-        throw new Error(errorMsg);
-    } 
-}
 
 function getVoiceBasedChannel(interaction: CommandInteraction) : VoiceBasedChannel {
     const member = interaction.member as GuildMember;//|| await interaction.guild.members.fetch(interaction.user.id);
@@ -51,7 +30,7 @@ export const playurl = {
             const songUrl = getOptionValue<string>(interaction,'url');
             const connection = getConnection(interaction);
             const mplayer = connection.musicPlayer;
-            mplayer.playFromUrl(connection, songUrl!);
+            mplayer.playFromUrl(songUrl!);
             await interaction.reply(`Playing song from URL: ${songUrl}`);
         }
         catch(error){
@@ -97,7 +76,7 @@ export const play = {
             const num = getOptionValue<number>(interaction,'num');
             const connection = getConnection(interaction);
             const mplayer = connection.musicPlayer;
-            mplayer.play(connection, num);
+            mplayer.play(num);
             const playing = mplayer.currentlyPlaying();
             await interaction.reply(`Playing song: ${playing}`);
         }
@@ -120,7 +99,7 @@ export const togglepause = {
             const connection = getConnection(interaction);
             const mplayer = connection.musicPlayer;
 
-            const playing = mplayer.togglePause(connection);
+            const playing = mplayer.togglePause();
             await interaction.reply(`${playing ? "Playing" : "Pausing" } currently playing song: ${mplayer.currentlyPlaying()}`);
         }
         catch(error) {
@@ -142,7 +121,7 @@ export const stop = {
             const connection = getConnection(interaction);
             const mplayer = connection.musicPlayer;
             const wasPlaying = mplayer.currentlyPlaying();
-            const playing = mplayer.stop(connection);
+            mplayer.stop();
             await interaction.reply(`Stopping currently playing song: ${wasPlaying}`);
         }
         catch(error) {
@@ -168,7 +147,7 @@ export const add = {
             const songUrl = getOptionValue<string>(interaction,'url');
             const connection = getConnection(interaction);
             const mplayer = connection.musicPlayer;
-            mplayer.add(interaction);
+            mplayer.add(CreateTrack(interaction));
             await interaction.reply(`Adding song to track list from URL: ${songUrl}`);
         }catch(error){
             let errorMsg = "Error occurred.";
@@ -270,7 +249,7 @@ export const next = {
         try{
             const connection = getConnection(interaction);
             const mplayer = connection.musicPlayer;
-            mplayer.next(connection);
+            mplayer.next();
 
             await interaction.reply(`Playing next song: ${mplayer.currentlyPlaying()}`);
         }
@@ -292,7 +271,7 @@ export const prev = {
         try{
             const connection = getConnection(interaction);
             const mplayer = connection.musicPlayer;
-            mplayer.prev(connection);
+            mplayer.prev();
             await interaction.reply(`Playing previous song: ${mplayer.currentlyPlaying()}`);
         }
         catch(error){

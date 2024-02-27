@@ -1,9 +1,7 @@
-import { AudioPlayerStatus, createAudioPlayer, createAudioResource, StreamType, } from '@discordjs/voice';
+import { AudioPlayerStatus, createAudioPlayer, createAudioResource, StreamType, VoiceConnection, } from '@discordjs/voice';
 import ytdl from 'ytdl-core';
-import { Readable, Stream, Transform, TransformCallback, } from 'stream';
-import { Connection } from './ConnectionManager';
+import { Readable, Transform, TransformCallback, } from 'stream';
 import { spawn } from 'child_process';
-import fs from 'fs';
 import EventEmitter from 'events';
 
 const MB = 1024 * 1024;
@@ -198,7 +196,7 @@ export class AudioMixingTransform extends Transform {
     
     removeStream(name:string, ended = false){
         console.log(`removing in transform mixer ` + name);
-        this.buffers.get(name)?.destroy();
+        //this.buffers.get(name)?.destroy();
         this.buffers.delete(name);
         this.emit('streamdelete', name, ended);
     }
@@ -258,7 +256,7 @@ export class AudioMixingTransform extends Transform {
 class DynamicAudioMixer extends EventEmitter{
     private streams = new Map<string, {url:string, loop: boolean }>();
     private mixer: AudioMixingTransform;
-    constructor(connection: Connection) {
+    constructor() {
         super();
         this.mixer = new AudioMixingTransform();
         this.mixer.on("streamdelete", (id: string, ended: boolean) => {
@@ -277,16 +275,15 @@ class DynamicAudioMixer extends EventEmitter{
         this.mixer.on('close', () => {
             console.error(`Close in mixer :`);
         });
-        this.connect(connection);
     }
 
-    connect(connection: Connection){
-        if(connection.voiceConnection){
+    connect(voiceConnection: VoiceConnection) : DynamicAudioMixer{
+        if(voiceConnection){
             const player = createAudioPlayer();
             const resource = createAudioResource(this.mixer, { inputType: StreamType.Raw});
             player.play(resource);
-            connection.voiceConnection.subscribe(player);
-            connection.voiceConnection.on('error', (error) => {
+            voiceConnection.subscribe(player);
+            voiceConnection.on('error', (error) => {
                 console.error(`Voice connection errror`, error);
             });
             player.on(AudioPlayerStatus.Idle, () => {
@@ -296,6 +293,8 @@ class DynamicAudioMixer extends EventEmitter{
                 console.error(`Error on player `,error);
             });
         }
+        
+        return this;
     }
 
     stopById(id: string) {

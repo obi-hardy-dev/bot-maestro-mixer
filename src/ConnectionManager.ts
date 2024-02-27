@@ -1,5 +1,5 @@
-import { AudioPlayer, VoiceConnection, VoiceConnectionStatus, createAudioPlayer, entersState, joinVoiceChannel } from "@discordjs/voice"
-import { Guild, GuildForumThreadManager, VoiceBasedChannel } from "discord.js";
+import { VoiceConnection, VoiceConnectionStatus, entersState, joinVoiceChannel } from "@discordjs/voice"
+import { Guild, VoiceBasedChannel } from "discord.js";
 import DynamicAudioMixer from "./AudioMixer";
 import MusicPlayer from "./MusicPlayer";
 import SoundEffectManager from "./SoundEffectManager";
@@ -14,7 +14,7 @@ export type Connection = {
 
 class ConnectionManager {
     voiceConnections: Map<string, Connection>;
-    
+
     constructor(){
         this.voiceConnections = new Map<string, Connection>();
     }
@@ -25,11 +25,10 @@ class ConnectionManager {
             console.log(`connection create`);
             connection = { 
                 guild: guild,
-                musicPlayer: new MusicPlayer(guild),
-                effectPlayer: new SoundEffectManager(guild),
+                musicPlayer: new MusicPlayer(),
+                effectPlayer: new SoundEffectManager(),
             } as Connection;
 
-            connection.mixer = new DynamicAudioMixer(connection);
             this.voiceConnections.set(guild.id, connection);
         }
         return connection;
@@ -41,9 +40,9 @@ class ConnectionManager {
             connection = this.getGuild(guild);
         }
         if(!connection?.voiceConnection){
-            console.log(`connection create`);
+            console.log(`voice connection create`);
             const voiceConnection = this.createConnection(voiceChannel);
-            voiceConnection.on(VoiceConnectionStatus.Disconnected, async (oldState, newState) => {
+            voiceConnection.on(VoiceConnectionStatus.Disconnected, async () => {
                 try {
                     await Promise.race([
                         entersState(voiceConnection, VoiceConnectionStatus.Signalling, 5_000),
@@ -58,12 +57,14 @@ class ConnectionManager {
                 }
             });
             connection.voiceConnection = voiceConnection;
-            connection.mixer = new DynamicAudioMixer(connection);
+            connection.mixer = new DynamicAudioMixer().connect(voiceConnection);
+            connection.musicPlayer.player = connection.mixer;
+            connection.effectPlayer.player = connection.mixer;
             connection.mixer.on('song-done', () => {
                 if(connection?.musicPlayer.loop)
-                    connection?.musicPlayer.play(connection);
+                    connection?.musicPlayer.play();
                 else 
-                    connection?.musicPlayer.next(connection);
+                    connection?.musicPlayer.next();
             })
         }
 

@@ -1,14 +1,6 @@
-import { CommandInteraction, Guild, } from "discord.js";
 import ytdl from "ytdl-core";
-import { globalEmitter } from './EventEmitter';
-import { Connection } from "./ConnectionManager";
 import DynamicAudioMixer from "./AudioMixer";
-
-type Track = {
-    trackName: string | undefined,
-    url: string ,
-    volume: number | undefined,
-}
+import { Track } from "./Track";
 
 export enum MusicType {
     YouTube,
@@ -20,37 +12,20 @@ export class MusicPlayer {
     isPlaying: boolean;
     currentTrack: number;
     playingId: string | undefined;
-    guild: Guild;
     loop: boolean;
     length: number;
 
 
-    constructor(guild: Guild){
+    constructor(){
         this.tracks = [];
         this.currentTrack = -1;
         this.length = 0;
         this.loop = false;
         this.isPlaying = false;
-        this.guild = guild; 
-        this.player = undefined;
-        globalEmitter.on('voiceConnectionDestroyed', (guildId: string) => {
-            // Handle the disconnection logic
-            if(this.guild!.id == guildId){
-                this.currentTrack = -1;
-            }
-        });
-
-    }
-
-    private getOptionValue<T>(interaction: CommandInteraction, name: string) : T | undefined{
-        const option = interaction.options.get(name);
-
-        return option ? option.value as T : undefined;
     }
 
     remove (trackNum?: number) : void {
         if(!trackNum) trackNum = this.currentTrack;
-    
         this.tracks.splice(trackNum, 1);
     }
 
@@ -65,22 +40,12 @@ export class MusicPlayer {
         }
     }
 
-    add(interaction: CommandInteraction) : void {
+    add(track: Track) : void {
         this.length++;
         
-        const trackName: string | undefined = this.getOptionValue<string>(interaction, 'name');
-        const trackNum: number | undefined = this.getOptionValue<number>(interaction, 'num');
-        const volume: number | undefined = this.getOptionValue<number>(interaction, 'volume');
-        const songUrl: string | undefined = this.getOptionValue<string>(interaction, 'url');
-        
+        if(!track.name && track.url) this.setInfoFromUrl(track.url, (title) => { track.trackName = title }); 
 
-        const newTrack = { url: songUrl, trackName: trackName, volume: volume } as Track;
-
-        if(!trackName && songUrl) this.setInfoFromUrl(songUrl, (title) => { newTrack.trackName = title }); 
-
-        if(trackNum && trackNum >= 0) console.log(`TODO: trackNum ${trackNum} doesnt exist yet`);   
-
-        this.tracks.push(newTrack); 
+        this.tracks.push(track); 
 
     }
     
@@ -98,8 +63,7 @@ export class MusicPlayer {
             });
     }
 
-    togglePause(connection: Connection) : boolean {
-        this.player = connection.mixer;
+    togglePause() : boolean {
         if(!this.player) throw Error("Music Player | Unable to pause, no player created");
         if(this.isPlaying){
             this.isPlaying = this.player!.pauseById(this.playingId!);
@@ -110,55 +74,55 @@ export class MusicPlayer {
         return this.isPlaying;
     }
 
-    playFromUrl(connection: Connection, url: string) : void {        
+    playFromUrl(url: string) : void {        
         this.playingId = "urltrack";
-        connection.mixer?.addStream(url, "urltrack")
+        this.player?.addStream(url, "urltrack")
         this.isPlaying = true;
     }
 
-    play(connection: Connection, trackNum?: number) : void {
+    play(trackNum?: number) : void {
         if(trackNum && (trackNum < 0 || trackNum > this.length)) throw Error("Music Player | Track number was not found.");
         
         if(trackNum) this.currentTrack = trackNum;
 
-        if(this.currentTrack < 0) return this.prev(connection); 
+        if(this.currentTrack < 0) return this.prev(); 
 
         console.log("play: " + this.currentTrack); 
         
         const track = this.tracks[this.currentTrack];
         if(!track) throw Error("Music Player | No track found");
-        if(this.playingId) connection.mixer?.removeStream(this.playingId);
-        connection.mixer?.addStream(track.url, "track" + track.url)
+        if(this.playingId) this.player?.removeStream(this.playingId);
+        this.player!.addStream(track.url, "track" + track.url)
         this.playingId = "track" + track.url; 
         this.isPlaying = true;
     }
 
-    stop(connection: Connection) {
-        if(this.playingId) connection.mixer?.stopById(this.playingId);
+    stop() {
+        if(this.playingId) this.player?.stopById(this.playingId);
         this.playingId = undefined;
     }
     
-    next(connection: Connection): void {
+    next(): void {
         const track = this.tracks[this.currentTrack];
         if(track)
-            connection.mixer?.removeStream("track"+track.url);
+            this.player?.removeStream("track"+track.url);
         console.log(this.currentTrack);
         this.currentTrack++;
         if(this.currentTrack >= this.tracks.length) this.currentTrack = 0;
 
-        this.play(connection,this.currentTrack);
+        this.play(this.currentTrack);
     }   
 
-    prev(connection: Connection) : void {
+    prev() : void {
         const track = this.tracks[this.currentTrack];
         if(track)
-            connection.mixer?.removeStream("track"+track.url);
+            this.player?.removeStream("track"+track.url);
         this.currentTrack--;
         if(this.currentTrack < 0) {
             this.currentTrack = 0;
         }
         
-        this.play(connection, this.currentTrack);
+        this.play(this.currentTrack);
     }
 
     clear(){
