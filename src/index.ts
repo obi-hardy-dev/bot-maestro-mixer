@@ -1,23 +1,18 @@
 import { 
     Client, 
     GatewayIntentBits, 
+    Interaction, 
     Message,
-    PermissionsBitField, 
     } from 'discord.js';
 import { 
-    joinVoiceChannel, 
-    createAudioPlayer, 
-    createAudioResource,
-    AudioPlayerStatus, 
-    entersState,
-    VoiceConnectionStatus,
     VoiceConnection, 
  } from '@discordjs/voice';
 import { config } from './config';
 import commands from './commands';
 import { deployCommands } from './deploy-commands';
-import ytdl from 'ytdl-core';
 import ConnectionManager from './ConnectionManager';
+import { getConnection } from "./utils/Interaction";
+import { Connection } from "./ConnectionManager";
 
 export const connectionManagerInstance = new ConnectionManager();
 
@@ -37,6 +32,58 @@ client.on("guildCreate", async (guild) => {
     await deployCommands({ guildId: guild.id });
 
 });
+
+
+client.on('interactionCreate', async (interaction: Interaction) => {
+    if (!interaction.isButton()) return;
+
+    console.log("hit");
+    const customId = interaction.customId;
+    const guild = interaction.guild;
+    if (!guild) return;
+
+    // Example logic for handling a button press
+    try {
+        const connection: Connection = getConnection(interaction);
+
+        const mplayer = connection.musicPlayer;
+        switch (customId) {
+            case 'play':
+            // Invoke play logic here
+                mplayer.play();
+                await interaction.reply({ content: 'Play button pressed', ephemeral: true });
+                break;
+            case 'pause':
+                // Invoke pause/togglepause logic here
+                mplayer.togglePause();
+                await interaction.reply({ content: 'Pause/Play button pressed', ephemeral: true });
+                break;
+            case 'prev':
+                // Invoke skip logic here
+                mplayer.prev();
+                await interaction.reply({ content: 'Skip button pressed', ephemeral: true });
+                break;
+            case 'next':
+                // Invoke skip logic here
+                mplayer.next();
+                await interaction.reply({ content: 'Skip button pressed', ephemeral: true });
+                break;
+            case 'stop':
+                // Invoke stop logic here
+                mplayer.stop();
+                await interaction.reply({ content: 'Stop button pressed', ephemeral: true });
+                break;
+                // Handle other cases as needed
+        }
+    } catch (error) {
+        let errorMsg = "Error occurred.";
+        if (error instanceof Error) {
+            errorMsg = error.message;
+        }
+        await interaction.reply({ content: errorMsg, ephemeral: true });
+    }
+});
+
 
 client.on("interactionCreate", async (interaction) => {
     if (!interaction.isCommand()) {
@@ -71,69 +118,11 @@ client.on('voiceStateUpdate', (oldState, newState) => {
     }
 });
 
-const play = (message: Message) => {
-    const voiceChannel = message.member?.voice.channel;
-    if (!voiceChannel) {
-        return message.reply("You need to be in a voice channel to play music!");
-    }
-    const permissions = voiceChannel.permissionsFor(message.client.user!);
-    if (!permissions?.has(PermissionsBitField.Flags.Speak) || 
-        !permissions.has(PermissionsBitField.Flags.Connect)){
-        return message.reply("I need the permissions to join and speak in your voice channel!");
-    }
-
-    const args = message.content.split(' ');
-    if (args.length < 2) {
-        return message.reply("Please provide a YouTube URL.");
-    }
-
-    const stream = ytdl(args[1], { filter: 'audioonly', highWaterMark: 1 << 22});
-    const resource = createAudioResource(stream);
-    const player = createAudioPlayer();
-
-    stream.once("readable",() => {
-        setTimeout(()=>{ 
-            player.play(resource);
-        }, 500);
-    });
-    const connection = joinVoiceChannel({
-        channelId: voiceChannel.id,
-        guildId: message.guild!.id,
-        adapterCreator: message.guild!.voiceAdapterCreator,
-    });
-
-    connection.subscribe(player);
-    voiceConnections.set(message.guild!.id, connection);
-    player.play(resource);
-    player.pause();
-
-    player.on(AudioPlayerStatus.Idle, () => {
-    
-    });
-
-    connection.on(VoiceConnectionStatus.Disconnected, async () => {
-        try {
-            await Promise.race([
-                entersState(connection, VoiceConnectionStatus.Signalling, 5_000),
-                entersState(connection, VoiceConnectionStatus.Connecting, 5_000),
-            ]);
-            // Seems to be reconnecting to a new channel - ignore disconnect
-        } catch (error) {
-            // Seems to be a real disconnect which SHOULDN'T be recovered from
-            connection.destroy();
-            voiceConnections.delete(message.guild!.id);
-        }
-    });
-}
-
 client.on('messageCreate', async (message: Message) => {
     if (message.author.bot) return;
     
     if (message.content.startsWith('!ping')) {
         message.channel.send('Pong!');
-    }
-    if (message.content.startsWith('!play')) {
-        play(message);
     }
  
     if (message.content.startsWith('!maestroupdate')) {

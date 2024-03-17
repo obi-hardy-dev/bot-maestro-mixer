@@ -25,8 +25,8 @@ class ConnectionManager {
             console.log(`connection create`);
             connection = { 
                 guild: guild,
-                musicPlayer: new MusicPlayer(),
-                effectPlayer: new SoundEffectManager(),
+                musicPlayer: new MusicPlayer(guild.id),
+                effectPlayer: new SoundEffectManager(guild.id),
             } as Connection;
 
             this.voiceConnections.set(guild.id, connection);
@@ -76,6 +76,8 @@ class ConnectionManager {
     
         if(!connection?.voiceConnection) throw new Error("No connection to disconnect");
 
+        connection?.mixer?.destroy();
+        connection.voiceConnection.destroy();
         connection.voiceConnection = undefined;
         connection.mixer = undefined;
     }
@@ -110,7 +112,6 @@ class ConnectionManager {
         
         return connection;
     }
-
 
 }
 

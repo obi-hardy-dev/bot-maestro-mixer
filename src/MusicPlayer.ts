@@ -1,12 +1,14 @@
 import ytdl from "ytdl-core";
 import DynamicAudioMixer from "./AudioMixer";
 import { Track } from "./Track";
+import fs from "fs";
 
 export enum MusicType {
     YouTube,
 }
 
 export class MusicPlayer {
+    guildId: string;
     tracks: Track[];
     player: DynamicAudioMixer | undefined;
     isPlaying: boolean;
@@ -16,7 +18,8 @@ export class MusicPlayer {
     length: number;
 
 
-    constructor(){
+    constructor(guildId: string){
+        this.guildId = guildId;
         this.tracks = [];
         this.currentTrack = -1;
         this.length = 0;
@@ -134,6 +137,32 @@ export class MusicPlayer {
         this.isPlaying = false;
     }
 
+
+    async save(): Promise<void> {
+        const savePath = `./musicplayer/${this.guildId}-save.json`;
+
+        const savedState = {
+            currentTrack: this.currentTrack,
+            loop: this.loop,
+            length: this.length,
+            tracks: this.tracks.map(({ name, url, trackName }) => ({ name, url, trackName, isPlaying: false })),
+            guildId: this.guildId,
+        };
+
+        await fs.promises.writeFile(savePath, JSON.stringify(savedState));
+    }
+
+    async load(): Promise<void> {
+        const savePath = `./musicplayer/${this.guildId}-save.json`;
+
+        const savedState = JSON.parse(await fs.promises.readFile(savePath, 'utf8'));
+
+        this.currentTrack = savedState.currentTrack;
+        this.loop = savedState.loop;
+        this.length = savedState.length;
+        this.tracks = savedState.tracks;
+        this.guildId = savedState.guildId;
+    }
 }
 
 export default MusicPlayer

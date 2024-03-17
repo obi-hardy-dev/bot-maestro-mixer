@@ -21,6 +21,11 @@ import {
     playurleffect,
     playeffect,
     listeffects } from './soundeffects'
+import {
+    load,
+    save,
+    showcontrols,
+} from './management'
 
 export default {
     ping,
@@ -43,5 +48,9 @@ export default {
     toggleloopeffect,
     playurleffect,
     playeffect,
-    listeffects
+    listeffects,
+    load,
+    save,
+    showcontrols
 }
+

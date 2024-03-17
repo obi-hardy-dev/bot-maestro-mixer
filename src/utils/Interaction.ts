@@ -1,4 +1,4 @@
-import { CommandInteraction, GuildMember, VoiceBasedChannel } from "discord.js";
+import { BaseInteraction, CommandInteraction, GuildMember, VoiceBasedChannel } from "discord.js";
 import { Connection } from "../ConnectionManager";
 import { connectionManagerInstance as connectionManager } from "../index"
 
@@ -8,7 +8,7 @@ export function getOptionValue<T>(interaction: CommandInteraction, name: string)
     return option ? option.value as T : undefined;
 }
 
-export function getVoiceBasedChannel(interaction: CommandInteraction) : VoiceBasedChannel {
+export function getVoiceBasedChannel(interaction: BaseInteraction) : VoiceBasedChannel {
     const member = interaction.member as GuildMember;//|| await interaction.guild.members.fetch(interaction.user.id);
     const channel = member?.voice.channel;
     if(!channel || !channel.isVoiceBased) {
@@ -16,7 +16,7 @@ export function getVoiceBasedChannel(interaction: CommandInteraction) : VoiceBas
     }
     return channel;
 }
-export function getConnection(interaction: CommandInteraction) : Connection {
+export function getConnection(interaction: BaseInteraction) : Connection {
     try{
         const guild = interaction.guild!;
         const channel = getVoiceBasedChannel(interaction)!;

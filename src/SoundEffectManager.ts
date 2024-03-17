@@ -1,4 +1,5 @@
 import DynamicAudioMixer from "./AudioMixer";
+import fs from "fs";
 
 type SoundEffect = {
     name: string, 
@@ -8,10 +9,12 @@ type SoundEffect = {
 }
 
 class SoundEffectManager {
+    guildId: string;
     effects: SoundEffect[];
     player: DynamicAudioMixer | undefined;
 
-    constructor(){
+    constructor(guildId: string){
+        this.guildId = guildId;
         this.effects = [];
     }
 
@@ -81,6 +84,36 @@ class SoundEffectManager {
         return se.isPlaying;
     }
 
+    //Testing STATE SAVE AND LOAD
+
+
+// Save the current state to a JSON file
+  async save(): Promise<void> {
+    // Get the directory path for the guild's save file
+    const savePath = `./semanager/${this.guildId}-save.json`;
+
+    // Create an object to save, excluding the transient properties 'loop' and 'isPlaying'
+    const savedState = {
+      effects: this.effects.map(({ name, url, loop }) => ({ name, url, loop, isPlaying: false })),
+      guildId: this.guildId,
+    };
+
+    // Write the JSON string to the save file
+    await fs.promises.writeFile(savePath, JSON.stringify(savedState));
+  }
+
+  // Load the state from a JSON file
+  async load(): Promise<void> {
+    // Get the directory path for the guild's save file
+    const savePath = `./semanager/${this.guildId}-save.json`;
+
+    // Read the JSON string from the file
+    const savedState = JSON.parse(await fs.promises.readFile(savePath, 'utf8'));
+
+    // Override the current state with the saved state
+    this.effects = savedState.effects;
+    this.guildId = savedState.guildId;
+  }
 }
 
 export default SoundEffectManager;
