@@ -86,7 +86,8 @@ export class MusicPlayer {
     play(trackNum?: number) : void {
         if(trackNum && (trackNum < 0 || trackNum > this.length)) throw Error("Music Player | Track number was not found.");
         
-        if(trackNum) this.currentTrack = trackNum;
+        console.log(trackNum)
+        if(trackNum && trackNum >= 0) this.currentTrack = trackNum;
 
         if(this.currentTrack < 0) return this.prev(); 
 

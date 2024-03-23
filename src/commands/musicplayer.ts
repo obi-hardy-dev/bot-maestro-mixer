@@ -73,10 +73,13 @@ export const play = {
                 .setDescription('The number of the song in the current track list you want to play')),
     async execute(interaction: CommandInteraction) {
         try{
-            const num = getOptionValue<number>(interaction,'num');
+            let num = getOptionValue<number>(interaction,'num');
             const connection = getConnection(interaction);
             const mplayer = connection.musicPlayer;
+            console.log(num)
+            if (num) num = num - 1;
             mplayer.play(num);
+
             const playing = mplayer.currentlyPlaying();
             await interaction.reply(`Playing song: ${playing}`);
         }

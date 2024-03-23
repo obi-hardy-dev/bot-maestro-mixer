@@ -25,6 +25,7 @@ import {
     load,
     save,
     showcontrols,
+    clear,
 } from './management'
 
 export default {
@@ -51,6 +52,7 @@ export default {
     listeffects,
     load,
     save,
-    showcontrols
+    showcontrols,
+    clear
 }
 

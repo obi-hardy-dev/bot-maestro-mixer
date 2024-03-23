@@ -52,7 +52,6 @@ class ConnectionManager {
                 } catch (error) {
                     // Seems to be a real disconnect which SHOULDN'T be recovered from
                     console.log(`disconnected from ${guild.id} `);
-                    connection?.mixer?.destroy();
                     this.disconnect(guild.id);
                 }
             });
@@ -65,6 +64,10 @@ class ConnectionManager {
                     connection?.musicPlayer.play();
                 else 
                     connection?.musicPlayer.next();
+            });
+            connection.mixer.on("silence-timeout", () => {
+                console.log("Timeout from silence")
+                this.disconnect(guild.id);
             })
         }
 
@@ -74,10 +77,10 @@ class ConnectionManager {
     disconnect(id: string) {
         const connection = this.voiceConnections.get(id);
     
-        if(!connection?.voiceConnection) throw new Error("No connection to disconnect");
+        if(!connection) throw new Error("No connection to disconnect");
 
-        connection?.mixer?.destroy();
-        connection.voiceConnection.destroy();
+        connection.mixer?.destroy();
+        connection.voiceConnection?.destroy();
         connection.voiceConnection = undefined;
         connection.mixer = undefined;
     }

@@ -102,6 +102,14 @@ class AudioBuffer{
 
     destroy(){
         this.setPause(true);
+        this.buffer = Buffer.alloc(0);
+
+        this.sourceStream.removeAllListeners("end");
+
+        this.done = true;
+        this.readyToFlush = false;
+        this.sourceStream = null as any; // Using 'null as any' to satisfy TypeScript's type checking.
+        this.lastProcessedTime = undefined;
     }
 }
 
@@ -115,16 +123,20 @@ export class AudioMixingTransform extends Transform {
     private bitDepth = 16;
     private channels = 2;
     private initialDurationMs = 500; 
+    private silenceInterval:NodeJS.Timeout | undefined;
+    private silenceTimeout: number;
     private bytesPerSample = this.bitDepth / 8;
     
     constructor() {
         super();
         this.buffers = new Map<string, AudioBuffer>();
         this.mixingInterval  = 10; // milliseconds, adjust as needed
+        this.silenceTimeout = 1000 * 60 * 5
         this.interval = setInterval(() => {
             this.mixAndOutput();
         }, this.mixingInterval);
     }
+
     getBufferSize() {
         const now = process.hrtime.bigint();
         if(!this.lastTimestamp){
@@ -156,10 +168,22 @@ export class AudioMixingTransform extends Transform {
         
 
         if(pipes.length > 0  ){
+
+            if(this.silenceInterval){
+                clearTimeout(this.silenceInterval);
+                this.silenceInterval = undefined;
+                console.log("silencetimeoutcleared");
+            }
             const mix = this.mixChunk(pipes);
             this.push(mix);
         }
         else{
+            if(!this.silenceInterval){
+                console.log("silencetimeoutstarted");
+                this.silenceInterval = setTimeout(() => {
+                    this.emit("silence-timeout");
+                }, this.silenceTimeout);
+            }
             this.push(Buffer.alloc(bs).fill(0))
         }
     }
@@ -197,8 +221,12 @@ export class AudioMixingTransform extends Transform {
     removeStream(name:string, ended = false){
         console.log(`removing in transform mixer ` + name);
         //this.buffers.get(name)?.destroy();
-        this.buffers.delete(name);
-        this.emit('streamdelete', name, ended);
+        const buffer = this.buffers.get(name);
+        if (buffer) {
+            buffer.destroy(); 
+            this.buffers.delete(name);
+            this.emit('streamdelete', name, ended);
+        }
     }
 
     playAll(): boolean {
@@ -248,7 +276,7 @@ export class AudioMixingTransform extends Transform {
             this.buffers.delete(key);
         }
         if(error) console.error(error);
-        super.destroy();
+        super.destroy(error);
         return this;
     }
 }
@@ -259,6 +287,9 @@ class DynamicAudioMixer extends EventEmitter{
     constructor() {
         super();
         this.mixer = new AudioMixingTransform();
+        this.mixer.on("silence-timeout", () => {
+            this.emit("silence-timeout"); 
+        });
         this.mixer.on("streamdelete", (id: string, ended: boolean) => {
             const stream = this.streams.get(id);
             
@@ -276,7 +307,7 @@ class DynamicAudioMixer extends EventEmitter{
             console.error(`Close in mixer :`);
         });
     }
-
+        
     connect(voiceConnection: VoiceConnection) : DynamicAudioMixer{
         if(voiceConnection){
             const player = createAudioPlayer();
@@ -365,6 +396,8 @@ class DynamicAudioMixer extends EventEmitter{
 
 
     destroy(){
+        this.mixer.destroy();
+        this.streams = new Map<string, {url:string, loop: boolean }>();
     }
         
 }

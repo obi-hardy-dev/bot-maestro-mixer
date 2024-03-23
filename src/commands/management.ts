@@ -5,6 +5,7 @@ import { CommandInteraction,
     Emoji
 } from "discord.js";
 import { getConnection } from "../utils/Interaction";
+import { execute } from "./ping";
 
 
 
@@ -56,6 +57,29 @@ export const load = {
     }
 };
 
+export const clear = {
+    data: new SlashCommandBuilder()
+        .setName('clear')
+        .setDescription('Clear the configured tracks and effects for Maestro.'),
+    async execute(interaction: CommandInteraction) {
+        try{
+            const connection = getConnection(interaction);
+
+            connection.musicPlayer.clear();
+            connection.effectPlayer.clear();
+
+            await interaction.reply(`Music and effects cleared`);
+        }
+        catch(error){
+            let errorMsg = "Error occurred.";
+            if(error instanceof Error){
+                errorMsg = error.message;
+            }
+            await interaction.reply(errorMsg);    
+        }
+    }
+}
+
 export const showcontrols = {
     data: new SlashCommandBuilder()
         .setName('showcontrols')
@@ -103,6 +127,8 @@ function createMusicPlayerControls(): ActionRowBuilder<MessageActionRowComponent
         .setStyle(ButtonStyle.Danger),
       // Add more buttons as needed
     );
+
+    const trackList = new ActionRowBuilder
 
   return [musicControls];
 }
