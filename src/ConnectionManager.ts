@@ -80,7 +80,13 @@ class ConnectionManager {
         if(!connection) throw new Error("No connection to disconnect");
 
         connection.mixer?.destroy();
-        connection.voiceConnection?.destroy();
+        try {
+            connection.voiceConnection?.destroy();
+        }
+        catch(error)
+        {
+            console.error(error);
+        }
         connection.voiceConnection = undefined;
         connection.mixer = undefined;
     }

@@ -1,4 +1,4 @@
-import ytdl from 'ytdl-core';
+import ytdl from '@distube/ytdl-core';
 const videoUrl = 'https://www.youtube.com/watch?v=lukT_WB5IB0'; // Replace with a valid YouTube video URL
 const videoUrl2 = 'https://www.youtube.com/watch?v=opBFaCS_PV4';
 
